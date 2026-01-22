@@ -1,6 +1,6 @@
 use crate::ui::Ui;
 use anyhow::Result;
-use colored::*;
+use colored::Colorize;
 use rhinolabs_core::{Doctor, diagnostics::CheckStatus};
 
 pub async fn run() -> Result<()> {
@@ -10,25 +10,25 @@ pub async fn run() -> Result<()> {
     let report = Doctor::run().await?;
 
     for check in &report.checks {
-        let (icon, color): (&str, fn(&str) -> ColoredString) = match check.status {
-            CheckStatus::Pass => ("✓", str::green),
-            CheckStatus::Fail => ("✗", str::red),
-            CheckStatus::Warning => ("⚠", str::yellow),
+        let (icon, name_colored) = match check.status {
+            CheckStatus::Pass => ("✓", check.name.green()),
+            CheckStatus::Fail => ("✗", check.name.red()),
+            CheckStatus::Warning => ("⚠", check.name.yellow()),
         };
 
         println!("{} {}: {}",
             icon.bold(),
-            color(&check.name),
+            name_colored,
             check.message
         );
     }
 
     println!();
-    println!("━".repeat(50).bright_black());
+    println!("{}", "━".repeat(50).bright_black());
     println!("{} passed, {} failed, {} warnings",
-        format!("{}", report.passed).green(),
-        format!("{}", report.failed).red(),
-        format!("{}", report.warnings).yellow(),
+        report.passed.to_string().green(),
+        report.failed.to_string().red(),
+        report.warnings.to_string().yellow(),
     );
     println!();
 

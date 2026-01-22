@@ -1,6 +1,5 @@
 use crate::{Result, RhinolabsError, Paths, Version};
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 
 pub struct Installer {

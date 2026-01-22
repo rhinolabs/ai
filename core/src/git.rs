@@ -13,8 +13,8 @@ impl GitOperations {
 
         Repository::clone(url, path)?;
 
-        // Keep temp dir alive by converting to persistent path
-        let persistent_path = temp_dir.into_path();
+        // Keep temp dir alive by persisting it
+        let persistent_path = temp_dir.keep();
         Ok(persistent_path.to_str().unwrap().to_string())
     }
 
