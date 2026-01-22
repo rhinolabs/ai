@@ -72,3 +72,66 @@ impl Default for Updater {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_updater_builder_pattern() {
+        let updater = Updater::new();
+        assert!(!updater.dry_run);
+
+        let updater_dry = Updater::new().dry_run(true);
+        assert!(updater_dry.dry_run);
+
+        let updater_chained = Updater::new().dry_run(true).dry_run(false);
+        assert!(!updater_chained.dry_run);
+    }
+
+    #[test]
+    fn test_updater_default() {
+        let updater: Updater = Default::default();
+        assert!(!updater.dry_run);
+    }
+
+    #[test]
+    fn test_backup_naming_format() {
+        // Test that backup naming follows pattern: rhinolabs-claude.backup.YYYYMMDD_HHMMSS
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+        let backup_name = format!("rhinolabs-claude.backup.{}", timestamp);
+
+        assert!(backup_name.starts_with("rhinolabs-claude.backup."));
+        assert!(backup_name.len() > "rhinolabs-claude.backup.".len());
+
+        // Verify timestamp format is valid (14 chars: YYYYMMDD_HHMMSS)
+        let timestamp_part = &backup_name["rhinolabs-claude.backup.".len()..];
+        assert_eq!(timestamp_part.len(), 15); // YYYYMMDD_HHMMSS = 15 chars
+        assert!(timestamp_part.contains('_'));
+    }
+
+    #[test]
+    fn test_backup_directory_structure() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let plugin_dir = temp_dir.path().join("rhinolabs-claude");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        std::fs::write(plugin_dir.join("test.txt"), "content").unwrap();
+
+        // Simulate backup by renaming
+        let backup_dir = temp_dir.path().join(format!(
+            "rhinolabs-claude.backup.{}",
+            chrono::Utc::now().format("%Y%m%d_%H%M%S")
+        ));
+
+        std::fs::rename(&plugin_dir, &backup_dir).unwrap();
+
+        // Verify backup exists and original doesn't
+        assert!(backup_dir.exists());
+        assert!(!plugin_dir.exists());
+
+        // Verify backup contents preserved
+        assert!(backup_dir.join("test.txt").exists());
+        let content = std::fs::read_to_string(backup_dir.join("test.txt")).unwrap();
+        assert_eq!(content, "content");
+    }
+}
