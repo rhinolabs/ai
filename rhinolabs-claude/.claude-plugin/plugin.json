@@ -1,0 +1,8 @@
+{
+  "name": "rhinolabs-claude",
+  "description": "Rhinolabs agency standards and best practices for Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "Rhinolabs"
+  }
+}

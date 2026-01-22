@@ -1,0 +1,268 @@
+name: Sync Vercel AI SDK Skills
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Every Monday at 00:00 UTC
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  sync-vercel-skills:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clone Vercel AI SDK
+        run: |
+          git clone --depth 1 https://github.com/vercel/ai.git /tmp/vercel-ai
+          echo "Vercel AI SDK cloned successfully"
+
+      - name: Extract and transform AI SDK Core skill
+        run: |
+          echo "Extracting AI SDK Core documentation..."
+
+          # Source files
+          CORE_OVERVIEW="/tmp/vercel-ai/content/docs/03-ai-sdk-core/01-overview.mdx"
+          CORE_GENERATING="/tmp/vercel-ai/content/docs/03-ai-sdk-core/05-generating-text.mdx"
+
+          # Create skill file with frontmatter
+          cat > rhinolabs-claude/skills/ai-sdk-core/SKILL.md << 'FRONTMATTER'
+          ---
+          name: ai-sdk-core
+          description: Use when working with Vercel AI SDK core functionality. Covers generateText, streamText, basic usage patterns, streaming responses, and error handling for AI text generation.
+          ---
+
+          FRONTMATTER
+
+          # Extract content from overview (remove MDX frontmatter)
+          if [ -f "$CORE_OVERVIEW" ]; then
+            echo "# AI SDK Core Patterns" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+            # Skip MDX frontmatter and extract content
+            sed -n '/^---$/,/^---$/!p' "$CORE_OVERVIEW" | tail -n +2 >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          fi
+
+          # Extract content from generating text
+          if [ -f "$CORE_GENERATING" ]; then
+            echo "## Generating Text" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+            sed -n '/^---$/,/^---$/!p' "$CORE_GENERATING" | tail -n +2 >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          fi
+
+          # Add sync metadata
+          echo "---" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          echo "*Auto-synced from [Vercel AI SDK](https://github.com/vercel/ai) - $(date +%Y-%m-%d)*" >> rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+
+      - name: Extract and transform AI SDK React skill
+        run: |
+          echo "Extracting AI SDK React documentation..."
+
+          # Source files
+          UI_OVERVIEW="/tmp/vercel-ai/content/docs/04-ai-sdk-ui/01-overview.mdx"
+          UI_CHATBOT="/tmp/vercel-ai/content/docs/04-ai-sdk-ui/02-chatbot.mdx"
+          UI_COMPLETION="/tmp/vercel-ai/content/docs/04-ai-sdk-ui/05-completion.mdx"
+
+          # Create skill file with frontmatter
+          cat > rhinolabs-claude/skills/ai-sdk-react/SKILL.md << 'FRONTMATTER'
+          ---
+          name: ai-sdk-react
+          description: Use when building React components with Vercel AI SDK. Covers useChat hook, useCompletion hook, message handling, streaming UI updates, and chat interface patterns.
+          ---
+
+          FRONTMATTER
+
+          # Extract overview
+          if [ -f "$UI_OVERVIEW" ]; then
+            echo "# AI SDK React Patterns" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            sed -n '/^---$/,/^---$/!p' "$UI_OVERVIEW" | tail -n +2 >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          fi
+
+          # Extract chatbot (useChat)
+          if [ -f "$UI_CHATBOT" ]; then
+            echo "## useChat Hook" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            sed -n '/^---$/,/^---$/!p' "$UI_CHATBOT" | tail -n +2 >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          fi
+
+          # Extract completion (useCompletion)
+          if [ -f "$UI_COMPLETION" ]; then
+            echo "## useCompletion Hook" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            sed -n '/^---$/,/^---$/!p' "$UI_COMPLETION" | tail -n +2 >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+            echo "" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          fi
+
+          # Add sync metadata
+          echo "---" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          echo "*Auto-synced from [Vercel AI SDK](https://github.com/vercel/ai) - $(date +%Y-%m-%d)*" >> rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+
+      - name: Extract and transform Next.js Integration skill
+        run: |
+          echo "Extracting Next.js integration documentation..."
+
+          # Source files
+          RSC_OVERVIEW="/tmp/vercel-ai/content/docs/05-ai-sdk-rsc/01-overview.mdx"
+          GETTING_STARTED="/tmp/vercel-ai/content/docs/02-getting-started/01-overview.mdx"
+
+          # Create skill file with frontmatter
+          cat > rhinolabs-claude/skills/nextjs-integration/SKILL.md << 'FRONTMATTER'
+          ---
+          name: nextjs-integration
+          description: Use when integrating AI into Next.js applications. Covers server actions, route handlers, React Server Components, edge runtime, and streaming responses for AI features in Next.js.
+          ---
+
+          FRONTMATTER
+
+          echo "# Next.js AI Integration Patterns" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+          echo "" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+          # Extract RSC overview
+          if [ -f "$RSC_OVERVIEW" ]; then
+            echo "## React Server Components" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+            echo "" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+            sed -n '/^---$/,/^---$/!p' "$RSC_OVERVIEW" | tail -n +2 >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+            echo "" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+          fi
+
+          # Extract getting started for Next.js context
+          if [ -f "$GETTING_STARTED" ]; then
+            echo "## Getting Started" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+            echo "" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+            sed -n '/^---$/,/^---$/!p' "$GETTING_STARTED" | tail -n +2 >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+            echo "" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+          fi
+
+          # Add sync metadata
+          echo "---" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+          echo "*Auto-synced from [Vercel AI SDK](https://github.com/vercel/ai) - $(date +%Y-%m-%d)*" >> rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+      - name: Clean up MDX-specific syntax
+        run: |
+          echo "Cleaning up MDX syntax from skills..."
+
+          # Remove import statements
+          sed -i '/^import /d' rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          sed -i '/^import /d' rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          sed -i '/^import /d' rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+          # Remove export statements
+          sed -i '/^export /d' rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          sed -i '/^export /d' rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          sed -i '/^export /d' rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+          # Remove JSX components like <Note>, <Tip>, etc. (keep content between)
+          sed -i 's/<Note>//g; s/<\/Note>//g' rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          sed -i 's/<Note>//g; s/<\/Note>//g' rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          sed -i 's/<Note>//g; s/<\/Note>//g' rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+          sed -i 's/<Tip>//g; s/<\/Tip>//g' rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          sed -i 's/<Tip>//g; s/<\/Tip>//g' rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          sed -i 's/<Tip>//g; s/<\/Tip>//g' rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+          # Remove empty lines at start of file (after frontmatter)
+          for file in rhinolabs-claude/skills/ai-sdk-*/SKILL.md rhinolabs-claude/skills/nextjs-integration/SKILL.md; do
+            if [ -f "$file" ]; then
+              # Preserve frontmatter, remove excessive blank lines
+              awk 'NF || p; {p=NF}' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+            fi
+          done
+
+          echo "MDX cleanup complete"
+
+      - name: Verify extracted content
+        run: |
+          echo "=== AI SDK Core ==="
+          head -30 rhinolabs-claude/skills/ai-sdk-core/SKILL.md
+          echo ""
+          echo "=== AI SDK React ==="
+          head -30 rhinolabs-claude/skills/ai-sdk-react/SKILL.md
+          echo ""
+          echo "=== Next.js Integration ==="
+          head -30 rhinolabs-claude/skills/nextjs-integration/SKILL.md
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: sync Vercel AI SDK skills from upstream"
+          title: "Sync Vercel AI SDK Skills - ${{ github.run_id }}"
+          reviewers: |
+            devops-lead
+            tech-lead
+          body: |
+            ## ⚠️ MANDATORY REVIEW REQUIRED
+
+            Automated weekly synchronization of Vercel AI SDK skills.
+
+            **DO NOT MERGE without completing the review checklist below.**
+
+            ### Source
+            - Repository: https://github.com/vercel/ai
+            - Branch: main
+            - Sync Date: ${{ github.event.repository.updated_at }}
+
+            ### Updated Skills
+            - `ai-sdk-core` - Core text generation (generateText, streamText)
+            - `ai-sdk-react` - React hooks (useChat, useCompletion)
+            - `nextjs-integration` - Next.js patterns (RSC, Server Actions)
+
+            ### Review Checklist - Technical Validation
+            - [ ] Content extracted correctly from upstream
+            - [ ] SKILL.md frontmatter YAML is valid
+            - [ ] No broken MDX syntax remains (imports, JSX components)
+            - [ ] Code examples are complete and functional
+            - [ ] Precedence section is present and correct
+
+            ### Review Checklist - Corporate Standards Compliance
+            **DevOps Lead** must verify:
+            - [ ] No contradiction with `rhinolabs-standards` (code quality, testing, docs)
+            - [ ] Examples follow Rhinolabs coding conventions
+            - [ ] Commit message conventions are compatible
+
+            **Tech Lead** must verify:
+            - [ ] No contradiction with `rhinolabs-architecture` (design patterns, structure)
+            - [ ] No contradiction with `rhinolabs-security` (auth, encryption, secrets)
+            - [ ] No security anti-patterns in code examples
+            - [ ] API key management follows our standards
+
+            ### If Conflicts Are Found
+
+            **DO NOT MERGE.** Instead:
+
+            1. **Document conflict** in PR comments with specific line numbers
+            2. **Edit synced skill** to align with corporate standards:
+               ```markdown
+               ## Rhinolabs Override
+
+               The Vercel docs suggest [X], but Rhinolabs standard requires [Y].
+
+               **Use this approach instead**:
+               [code example following corporate standards]
+               ```
+            3. **Commit changes** to this PR branch with message: `fix: align with rhinolabs-{standard}`
+            4. **Request re-review** from both reviewers
+            5. **Merge after approval**
+
+            ### Resources
+            - [SKILL_GUIDELINES.md](../docs/SKILL_GUIDELINES.md) - Conflict resolution rules
+            - [rhinolabs-standards](../rhinolabs-claude/skills/rhinolabs-standards/SKILL.md)
+            - [rhinolabs-architecture](../rhinolabs-claude/skills/rhinolabs-architecture/SKILL.md)
+            - [rhinolabs-security](../rhinolabs-claude/skills/rhinolabs-security/SKILL.md)
+
+            ---
+            *Automated by sync-vercel-skills workflow*
+          branch: sync-vercel-skills
+          delete-branch: true
+          labels: |
+            automated
+            skills
+            vercel-sync
+            needs-review

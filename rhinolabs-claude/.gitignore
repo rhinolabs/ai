@@ -1,0 +1,5 @@
+# MCP Toolkit exports (temporary)
+mcp-toolkit-export.json
+
+# Backup files from sync script
+.mcp.json.backup.*

@@ -1,0 +1,75 @@
+name: Sync MCP Configuration
+
+# This workflow automatically syncs MCP configuration from mcp-toolkit
+# to rhinolabs-ai repository.
+#
+# To enable:
+# 1. Rename this file to sync-mcp-config.yml
+# 2. Set MCP_CONFIG_URL in repository secrets
+# 3. Ensure bot has write permissions to repository
+
+on:
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+jobs:
+  sync-mcp-config:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Fetch MCP configuration
+        env:
+          MCP_CONFIG_URL: ${{ secrets.MCP_CONFIG_URL }}
+        run: |
+          cd rhinolabs-claude/scripts
+          chmod +x sync-mcp-config.sh
+          MCP_CONFIG_SOURCE=remote ./sync-mcp-config.sh
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if git diff --quiet rhinolabs-claude/.mcp.json; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected:"
+            git diff rhinolabs-claude/.mcp.json
+          fi
+
+      - name: Commit and push changes
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          git config user.name "MCP Sync Bot"
+          git config user.email "devops@rhinolabs.com"
+          git add rhinolabs-claude/.mcp.json
+          git commit -m "chore: sync MCP configuration from mcp-toolkit"
+          git push
+
+      - name: Notify team
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          echo "✅ MCP configuration updated"
+          echo "Changes will be available after developers pull latest changes"
+          # TODO: Add Slack notification here if desired
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"MCP configuration updated in rhinolabs-ai"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: No changes
+        if: steps.check_changes.outputs.has_changes == 'false'
+        run: |
+          echo "ℹ️ MCP configuration is up to date"
