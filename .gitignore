@@ -31,3 +31,10 @@ temp/
 dist/
 build/
 out/
+
+# Rust
+target/
+Cargo.lock
+
+# Tauri
+gui/src-tauri/target/

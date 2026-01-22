@@ -1,0 +1,8 @@
+pub mod install;
+pub mod update;
+pub mod uninstall;
+pub mod sync_mcp;
+pub mod status;
+pub mod doctor;
+pub mod version;
+pub mod interactive;

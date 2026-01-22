@@ -1,0 +1,21 @@
+[package]
+name = "rhinolabs-gui"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+rhinolabs-core = { path = "../../core" }
+serde_json.workspace = true
+serde.workspace = true
+tokio.workspace = true
+
+tauri = { version = "1.5", features = [] }
+
+[features]
+# This feature is used for production builds where `devPath` points to the filesystem
+custom-protocol = ["tauri/custom-protocol"]

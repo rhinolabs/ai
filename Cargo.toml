@@ -1,0 +1,21 @@
+[workspace]
+members = ["core", "cli", "gui/src-tauri"]
+resolver = "2"
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+authors = ["Rhinolabs <devops@rhinolabs.com>"]
+license = "PROPRIETARY"
+repository = "https://github.com/rhinolabs/rhinolabs-ai"
+
+[workspace.dependencies]
+# Shared dependencies across workspace
+anyhow = "1.0"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+reqwest = { version = "0.11", features = ["json", "blocking"] }
+dirs = "5.0"
+which = "6.0"

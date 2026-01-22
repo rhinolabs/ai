@@ -1,0 +1,29 @@
+[package]
+name = "rhinolabs-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+dirs.workspace = true
+which.workspace = true
+
+# Core-specific dependencies
+git2 = "0.18"
+zip = "0.6"
+flate2 = "1.0"
+tar = "0.4"
+semver = "1.0"
+regex = "1.10"
+chrono = { version = "0.4", features = ["serde"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3.9"

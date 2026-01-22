@@ -1,0 +1,22 @@
+[package]
+name = "rhinolabs"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "rhinolabs"
+path = "src/main.rs"
+
+[dependencies]
+rhinolabs-core = { path = "../core" }
+anyhow.workspace = true
+tokio.workspace = true
+
+# CLI-specific dependencies
+clap = { version = "4.4", features = ["derive", "cargo"] }
+colored = "2.1"
+indicatif = "0.17"
+dialoguer = "0.11"
+console = "0.15"

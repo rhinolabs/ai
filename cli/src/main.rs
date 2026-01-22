@@ -1,0 +1,101 @@
+mod commands;
+mod ui;
+
+use clap::{Parser, Subcommand};
+use commands::*;
+
+#[derive(Parser)]
+#[command(name = "rhinolabs")]
+#[command(about = "Rhinolabs AI Plugin Manager for Claude Code", long_about = None)]
+#[command(version)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Install the Rhinolabs Claude plugin
+    Install {
+        /// Install from local directory (for development)
+        #[arg(short, long)]
+        local: Option<String>,
+
+        /// Dry run - show what would be done without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Update plugin to latest version
+    Update {
+        /// Dry run - show what would be done without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Uninstall the plugin
+    Uninstall {
+        /// Dry run - show what would be done without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Sync MCP configuration
+    SyncMcp {
+        /// Remote URL to fetch configuration from
+        #[arg(short, long)]
+        url: Option<String>,
+
+        /// Local file path to import configuration from
+        #[arg(short, long)]
+        file: Option<String>,
+
+        /// Dry run - show what would be done without making changes
+        #[arg(long)]
+        dry_run: bool,
+    },
+
+    /// Show plugin status and version info
+    Status,
+
+    /// Run diagnostic checks
+    Doctor,
+
+    /// Show version information
+    Version,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(Commands::Install { local, dry_run }) => {
+            install::run(local, dry_run).await?;
+        }
+        Some(Commands::Update { dry_run }) => {
+            update::run(dry_run).await?;
+        }
+        Some(Commands::Uninstall { dry_run }) => {
+            uninstall::run(dry_run)?;
+        }
+        Some(Commands::SyncMcp { url, file, dry_run }) => {
+            sync_mcp::run(url, file, dry_run).await?;
+        }
+        Some(Commands::Status) => {
+            status::run()?;
+        }
+        Some(Commands::Doctor) => {
+            doctor::run().await?;
+        }
+        Some(Commands::Version) => {
+            version::run();
+        }
+        None => {
+            // Interactive mode
+            interactive::run().await?;
+        }
+    }
+
+    Ok(())
+}

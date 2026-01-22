@@ -1,10 +1,39 @@
-# Rhinolabs AI Configuration
+# Rhinolabs AI
 
-Enterprise-grade configuration solution for AI-powered development tools, starting with Claude Code.
+Enterprise-grade configuration and management solution for AI-powered development tools, starting with Claude Code.
 
 ## Overview
 
-This repository provides a centralized, multi-OS compatible configuration system for AI development tools used at Rhinolabs. It ensures consistent coding standards, best practices, and architectural patterns across all development teams.
+This repository provides:
+- **Rhinolabs Claude Plugin**: 14 curated skills for consistent coding standards and best practices
+- **CLI**: Rust-powered command-line tool for plugin management
+- **GUI**: Desktop application (Tauri) for visual plugin management
+- **Centralized MCP Configuration**: Integration with mcp-toolkit for unified MCP server management
+
+## Quick Start
+
+### Install CLI
+
+```bash
+# Download latest release for your OS from:
+# https://github.com/rhinolabs/rhinolabs-ai/releases
+
+# macOS/Linux
+curl -L https://github.com/rhinolabs/rhinolabs-ai/releases/latest/download/rhinolabs-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o rhinolabs
+chmod +x rhinolabs
+sudo mv rhinolabs /usr/local/bin/
+
+# Or use the interactive installer
+./rhinolabs
+```
+
+### Install Plugin
+
+```bash
+rhinolabs install
+```
+
+That's it! Restart Claude Code and you're ready to go.
 
 ## Architecture
 

@@ -1,0 +1,58 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run tests
+        run: cargo test --workspace --verbose
+
+      - name: Run clippy
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  skills-validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate SKILL.md files
+        run: |
+          # Check all SKILL.md files have valid frontmatter
+          for file in rhinolabs-claude/skills/*/SKILL.md; do
+            echo "Checking $file"
+            # Check frontmatter exists
+            if ! grep -q "^---$" "$file"; then
+              echo "ERROR: $file missing frontmatter"
+              exit 1
+            fi
+          done
+
+      - name: Validate JSON files
+        run: |
+          # Validate .mcp.json
+          jq empty rhinolabs-claude/.mcp.json
+
+          # Validate plugin.json
+          jq empty rhinolabs-claude/.claude-plugin/plugin.json

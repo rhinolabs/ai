@@ -1,0 +1,208 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+  build-cli:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: rhinolabs
+            asset_name: rhinolabs-linux-x64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: rhinolabs
+            asset_name: rhinolabs-linux-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: rhinolabs
+            asset_name: rhinolabs-darwin-x64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: rhinolabs
+            asset_name: rhinolabs-darwin-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: rhinolabs.exe
+            asset_name: rhinolabs-windows-x64.exe
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build CLI
+        run: cargo build --release --bin rhinolabs --target ${{ matrix.target }}
+
+      - name: Upload CLI binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+          asset_name: ${{ matrix.asset_name }}
+          asset_content_type: application/octet-stream
+
+  build-gui:
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: universal-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        working-directory: ./gui
+        run: npm install
+
+      - name: Build GUI
+        working-directory: ./gui
+        run: npm run tauri build
+
+      - name: Upload GUI artifacts (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          for file in gui/src-tauri/target/release/bundle/appimage/*.AppImage; do
+            gh release upload ${{ github.ref_name }} "$file"
+          done
+          for file in gui/src-tauri/target/release/bundle/deb/*.deb; do
+            gh release upload ${{ github.ref_name }} "$file"
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload GUI artifacts (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          for file in gui/src-tauri/target/release/bundle/dmg/*.dmg; do
+            gh release upload ${{ github.ref_name }} "$file"
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload GUI artifacts (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          Get-ChildItem gui/src-tauri/target/release/bundle/msi/*.msi | ForEach-Object {
+            gh release upload ${{ github.ref_name }} $_.FullName
+          }
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package-plugin:
+    needs: create-release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create plugin zip
+        run: |
+          cd rhinolabs-claude
+          zip -r ../rhinolabs-claude-${{ needs.create-release.outputs.version }}.zip \
+            .claude-plugin \
+            .mcp.json \
+            CLAUDE.md \
+            settings.json \
+            skills \
+            scripts \
+            output-styles \
+            statusline.sh
+
+      - name: Upload plugin zip
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./rhinolabs-claude-${{ needs.create-release.outputs.version }}.zip
+          asset_name: rhinolabs-claude-${{ needs.create-release.outputs.version }}.zip
+          asset_content_type: application/zip
+
+  generate-checksums:
+    needs: [create-release, build-cli, build-gui, package-plugin]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release assets
+        run: |
+          gh release download ${{ github.ref_name }} --dir ./assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate checksums
+        run: |
+          cd assets
+          sha256sum * > SHA256SUMS.txt
+
+      - name: Upload checksums
+        run: |
+          gh release upload ${{ github.ref_name }} assets/SHA256SUMS.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
