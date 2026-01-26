@@ -43,6 +43,9 @@ pub enum RhinolabsError {
     #[error("MCP sync failed: {0}")]
     McpSyncFailed(String),
 
+    #[error("Network error: {0}")]
+    NetworkError(String),
+
     #[error("Configuration error: {0}")]
     ConfigError(String),
 

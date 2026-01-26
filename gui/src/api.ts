@@ -11,10 +11,18 @@ import type {
   Skill,
   CreateSkillInput,
   UpdateSkillInput,
+  SkillSource,
+  SkillSourceType,
+  SkillSchema,
   Instructions,
   DiagnosticReport,
   PermissionConfig,
   StatusLineConfig,
+  ProjectConfig,
+  ProjectStatus,
+  IdeInfo,
+  SkillFile,
+  RemoteSkillFile,
 } from './types';
 
 export const api = {
@@ -220,6 +228,78 @@ export const api = {
   },
 
   // ============================================
+  // Skill Sources
+  // ============================================
+
+  listSkillSources(): Promise<SkillSource[]> {
+    return invoke('list_skill_sources');
+  },
+
+  addSkillSource(source: {
+    id: string;
+    name: string;
+    sourceType: SkillSourceType;
+    url: string;
+    description: string;
+    fetchable: boolean;
+    schema: string;
+  }): Promise<void> {
+    return invoke('add_skill_source', { input: source });
+  },
+
+  updateSkillSource(
+    id: string,
+    updates: {
+      enabled?: boolean;
+      name?: string;
+      url?: string;
+      description?: string;
+      fetchable?: boolean;
+      schema?: SkillSchema;
+    }
+  ): Promise<void> {
+    return invoke('update_skill_source', { id, ...updates });
+  },
+
+  removeSkillSource(id: string): Promise<void> {
+    return invoke('remove_skill_source', { id });
+  },
+
+  installSkillFromSource(input: {
+    skillId: string;
+    skillContent: string;
+    sourceId: string;
+    sourceName: string;
+  }): Promise<Skill> {
+    return invoke('install_skill_from_source', { input });
+  },
+
+  installSkillFromRemote(input: {
+    sourceUrl: string;
+    skillId: string;
+    sourceId: string;
+    sourceName: string;
+  }): Promise<Skill> {
+    return invoke('install_skill_from_remote', { input });
+  },
+
+  getInstalledSkillIds(): Promise<string[]> {
+    return invoke('get_installed_skill_ids');
+  },
+
+  fetchRemoteSkills(sourceId: string): Promise<import('./types').RemoteSkill[]> {
+    return invoke('fetch_remote_skills', { sourceId });
+  },
+
+  fetchSkillContent(url: string): Promise<string> {
+    return invoke('fetch_skill_content', { url });
+  },
+
+  fetchRemoteSkillFiles(sourceUrl: string, skillId: string): Promise<RemoteSkillFile[]> {
+    return invoke('fetch_remote_skill_files', { input: { sourceUrl, skillId } });
+  },
+
+  // ============================================
   // Instructions (CLAUDE.md)
   // ============================================
 
@@ -229,5 +309,57 @@ export const api = {
 
   updateInstructions(content: string): Promise<void> {
     return invoke('update_instructions', { content });
+  },
+
+  // ============================================
+  // Project & Release
+  // ============================================
+
+  getProjectConfig(): Promise<ProjectConfig> {
+    return invoke('get_project_config');
+  },
+
+  updateProjectConfig(config: ProjectConfig): Promise<void> {
+    return invoke('update_project_config', { config });
+  },
+
+  getProjectStatus(): Promise<ProjectStatus> {
+    return invoke('get_project_status');
+  },
+
+  fetchLatestRelease(): Promise<string | null> {
+    return invoke('fetch_latest_release');
+  },
+
+  bumpVersion(bumpType: 'major' | 'minor' | 'patch'): Promise<string> {
+    return invoke('bump_version', { bumpType });
+  },
+
+  createRelease(version: string, changelog: string, prerelease: boolean): Promise<string> {
+    return invoke('create_release', { version, changelog, prerelease });
+  },
+
+  // ============================================
+  // IDE & Skill Files
+  // ============================================
+
+  listAvailableIdes(): Promise<IdeInfo[]> {
+    return invoke('list_available_ides');
+  },
+
+  openSkillInIde(skillId: string, ideCommand: string): Promise<void> {
+    return invoke('open_skill_in_ide', { skillId, ideCommand });
+  },
+
+  openInstructionsInIde(ideCommand: string): Promise<void> {
+    return invoke('open_instructions_in_ide', { ideCommand });
+  },
+
+  openOutputStyleInIde(styleId: string, ideCommand: string): Promise<void> {
+    return invoke('open_output_style_in_ide', { styleId, ideCommand });
+  },
+
+  getSkillFiles(skillId: string): Promise<SkillFile[]> {
+    return invoke('get_skill_files', { skillId });
   },
 };

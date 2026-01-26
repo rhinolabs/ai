@@ -5,6 +5,16 @@ use std::path::PathBuf;
 pub struct Paths;
 
 impl Paths {
+    /// Check if running in development mode (local project directory)
+    pub fn is_dev_mode() -> bool {
+        std::env::var("RHINOLABS_DEV_PATH").is_ok()
+    }
+
+    /// Get the development path if set
+    fn dev_path() -> Option<PathBuf> {
+        std::env::var("RHINOLABS_DEV_PATH").ok().map(PathBuf::from)
+    }
+
     /// Get Claude Code plugins directory
     pub fn claude_code_plugins_dir() -> Result<PathBuf> {
         let base = if cfg!(target_os = "macos") {
@@ -31,7 +41,11 @@ impl Paths {
     }
 
     /// Get rhinolabs-claude plugin directory
+    /// In dev mode, uses RHINOLABS_DEV_PATH environment variable
     pub fn plugin_dir() -> Result<PathBuf> {
+        if let Some(dev_path) = Self::dev_path() {
+            return Ok(dev_path);
+        }
         Ok(Self::claude_code_plugins_dir()?.join("rhinolabs-claude"))
     }
 

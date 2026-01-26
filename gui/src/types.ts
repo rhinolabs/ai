@@ -69,6 +69,40 @@ export interface OutputStyle {
 }
 
 // ============================================
+// Skill Sources
+// ============================================
+export type SkillSourceType = 'official' | 'marketplace' | 'community' | 'local';
+
+/** Schema/structure used by a skill source repository */
+export type SkillSchema = 'standard' | 'custom';
+
+export interface SkillSource {
+  id: string;
+  name: string;
+  sourceType: SkillSourceType;
+  url: string;
+  description: string;
+  enabled: boolean;
+  /** If true, skills can be fetched automatically. If false, browse-only (visit URL manually). */
+  fetchable: boolean;
+  /** The schema/structure used by this source */
+  schema: SkillSchema;
+  skillCount?: number;
+}
+
+export interface RemoteSkill {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  sourceId: string;
+  sourceName: string;
+  url: string;
+  stars?: number;
+  installed: boolean;
+}
+
+// ============================================
 // Skills (skills/**/SKILL.md)
 // ============================================
 export interface Skill {
@@ -81,6 +115,9 @@ export interface Skill {
   content: string;
   createdAt?: string;
   isCustom: boolean;
+  sourceId?: string;
+  sourceName?: string;
+  isModified: boolean;
 }
 
 export type SkillCategory =
@@ -104,6 +141,11 @@ export interface UpdateSkillInput {
   description?: string;
   content?: string;
   enabled?: boolean;
+}
+
+export interface InstallSkillInput {
+  sourceId: string;
+  skillId: string;
 }
 
 // ============================================
@@ -150,4 +192,64 @@ export interface PluginStatus {
 export interface McpSyncSource {
   type: 'url' | 'file';
   value: string;
+}
+
+// ============================================
+// Project & Release
+// ============================================
+export interface GitHubConfig {
+  owner: string;
+  repo: string;
+  branch: string;
+}
+
+export interface ReleaseAsset {
+  name: string;
+  path: string;
+  description: string;
+}
+
+export interface ProjectConfig {
+  github: GitHubConfig;
+  assets: ReleaseAsset[];
+  autoChangelog: boolean;
+}
+
+export interface ProjectStatus {
+  isConfigured: boolean;
+  hasGit: boolean;
+  currentBranch: string | null;
+  hasRemote: boolean;
+  remoteUrl: string | null;
+  hasUncommittedChanges: boolean;
+  pluginVersion: string | null;
+  latestRelease: string | null;
+}
+
+// ============================================
+// IDE & Skill Files
+// ============================================
+
+export interface IdeInfo {
+  id: string;
+  name: string;
+  command: string;
+  available: boolean;
+}
+
+export interface SkillFile {
+  name: string;
+  path: string;
+  relativePath: string;
+  isDirectory: boolean;
+  content: string | null;
+  language: string | null;
+}
+
+export interface RemoteSkillFile {
+  name: string;
+  relativePath: string;
+  isDirectory: boolean;
+  downloadUrl: string | null;
+  language: string | null;
 }

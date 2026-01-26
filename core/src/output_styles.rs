@@ -82,6 +82,11 @@ impl OutputStyles {
         format!("{}.md", id.to_lowercase())
     }
 
+    /// Get the public path to a specific style file (for opening in IDE)
+    pub fn get_style_path(id: &str) -> Result<PathBuf> {
+        Ok(Self::styles_dir()?.join(Self::id_to_filename(id)))
+    }
+
     /// List all output styles
     pub fn list() -> Result<Vec<OutputStyle>> {
         let dir = Self::styles_dir()?;

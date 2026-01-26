@@ -1,0 +1,37 @@
+{
+  "disabled": [],
+  "custom": [],
+  "sources": [
+    {
+      "id": "anthropic-official",
+      "name": "Anthropic Official",
+      "sourceType": "official",
+      "url": "https://github.com/anthropics/skills",
+      "description": "Official skills from Anthropic",
+      "enabled": true,
+      "fetchable": true,
+      "schema": "standard"
+    },
+    {
+      "id": "vercel-agent-skills",
+      "name": "Vercel Agent Skills",
+      "sourceType": "marketplace",
+      "url": "https://github.com/vercel-labs/agent-skills",
+      "description": "Agent skills from Vercel Labs",
+      "enabled": true,
+      "fetchable": true,
+      "schema": "standard"
+    },
+    {
+      "id": "awesome-claude-skills",
+      "name": "Awesome Claude Skills",
+      "sourceType": "community",
+      "url": "https://github.com/travisvn/awesome-claude-skills",
+      "description": "Curated list with links - browse README for skill repos",
+      "enabled": true,
+      "fetchable": false,
+      "schema": "standard"
+    }
+  ],
+  "skillMeta": {}
+}

@@ -106,11 +106,13 @@ impl Settings {
     }
 
     /// Read the plugin settings
+    /// Returns default settings if file doesn't exist
     pub fn get() -> Result<PluginSettings> {
         let path = Self::settings_path()?;
 
         if !path.exists() {
-            return Err(RhinolabsError::PluginNotInstalled);
+            // Return default settings instead of error
+            return Ok(PluginSettings::default());
         }
 
         let content = fs::read_to_string(&path)?;
@@ -120,11 +122,15 @@ impl Settings {
     }
 
     /// Update the plugin settings
+    /// Creates the directory if it doesn't exist
     pub fn update(settings: &PluginSettings) -> Result<()> {
         let path = Self::settings_path()?;
 
-        if !path.parent().map(|p| p.exists()).unwrap_or(false) {
-            return Err(RhinolabsError::PluginNotInstalled);
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
         }
 
         let content = serde_json::to_string_pretty(settings)?;

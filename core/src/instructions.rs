@@ -18,12 +18,22 @@ impl InstructionsManager {
         Ok(Paths::plugin_dir()?.join("CLAUDE.md"))
     }
 
+    /// Get the public path to CLAUDE.md (for opening in IDE)
+    pub fn get_path() -> Result<PathBuf> {
+        Self::instructions_path()
+    }
+
     /// Get the instructions (CLAUDE.md content)
+    /// Returns empty content with current timestamp if file doesn't exist
     pub fn get() -> Result<Instructions> {
         let path = Self::instructions_path()?;
 
         if !path.exists() {
-            return Err(RhinolabsError::PluginNotInstalled);
+            // Return default empty instructions
+            return Ok(Instructions {
+                content: String::new(),
+                last_modified: chrono::Utc::now().to_rfc3339(),
+            });
         }
 
         let content = fs::read_to_string(&path)?;
@@ -42,11 +52,15 @@ impl InstructionsManager {
     }
 
     /// Update the instructions (CLAUDE.md content)
+    /// Creates the directory if it doesn't exist
     pub fn update(content: &str) -> Result<()> {
         let path = Self::instructions_path()?;
 
-        if !path.parent().map(|p| p.exists()).unwrap_or(false) {
-            return Err(RhinolabsError::PluginNotInstalled);
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
         }
 
         if content.trim().is_empty() {

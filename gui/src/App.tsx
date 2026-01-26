@@ -1,14 +1,15 @@
-import { Routes, Route, NavLink } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-import { useState } from 'react';
-import Dashboard from './pages/Dashboard';
-import Settings from './pages/Settings';
-import OutputStyle from './pages/OutputStyle';
-import Mcp from './pages/Mcp';
-import Skills from './pages/Skills';
-import Instructions from './pages/Instructions';
-import Diagnostics from './pages/Diagnostics';
-import NotFound from './pages/NotFound';
+import { Routes, Route, NavLink } from "react-router-dom";
+import { Toaster } from "react-hot-toast";
+import { useState } from "react";
+import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
+import OutputStyle from "./pages/OutputStyle";
+import Mcp from "./pages/Mcp";
+import Skills from "./pages/Skills";
+import Instructions from "./pages/Instructions";
+import Diagnostics from "./pages/Diagnostics";
+import Release from "./pages/Release";
+import NotFound from "./pages/NotFound";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -21,17 +22,32 @@ function App() {
       <button
         className="menu-toggle"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
       >
-        {sidebarOpen ? '✕' : '☰'}
+        {sidebarOpen ? "✕" : "☰"}
       </button>
 
-      <nav className={`sidebar ${sidebarOpen ? 'open' : ''}`} role="navigation">
+      <nav className={`sidebar ${sidebarOpen ? "open" : ""}`} role="navigation">
         <h1>Rhinolabs AI</h1>
         <ul>
           <li>
             <NavLink to="/" end onClick={() => setSidebarOpen(false)}>
               Dashboard
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/mcp" onClick={() => setSidebarOpen(false)}>
+              MCP
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/instructions" onClick={() => setSidebarOpen(false)}>
+              Instructions
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/skills" onClick={() => setSidebarOpen(false)}>
+              Skills
             </NavLink>
           </li>
           <li>
@@ -45,23 +61,13 @@ function App() {
             </NavLink>
           </li>
           <li>
-            <NavLink to="/mcp" onClick={() => setSidebarOpen(false)}>
-              MCP
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/skills" onClick={() => setSidebarOpen(false)}>
-              Skills
-            </NavLink>
-          </li>
-          <li>
-            <NavLink to="/instructions" onClick={() => setSidebarOpen(false)}>
-              Instructions
-            </NavLink>
-          </li>
-          <li>
             <NavLink to="/diagnostics" onClick={() => setSidebarOpen(false)}>
               Diagnostics
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/release" onClick={() => setSidebarOpen(false)}>
+              Release
             </NavLink>
           </li>
         </ul>
@@ -76,6 +82,7 @@ function App() {
           <Route path="/skills" element={<Skills />} />
           <Route path="/instructions" element={<Instructions />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
+          <Route path="/release" element={<Release />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

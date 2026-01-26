@@ -3,13 +3,16 @@ use rhinolabs_core::{
     Manifest, PluginManifest,
     Settings, PluginSettings, PermissionConfig, StatusLineConfig,
     OutputStyles, OutputStyle,
-    Skills, Skill, CreateSkillInput, UpdateSkillInput,
+    Skills, Skill, CreateSkillInput, UpdateSkillInput, SkillSource, SkillSourceType, SkillSchema, RemoteSkill, RemoteSkillFile,
     InstructionsManager, Instructions,
     McpConfigManager, McpConfig, McpServer, McpSettings,
+    Project, ProjectConfig, ProjectStatus,
 };
 use rhinolabs_core::diagnostics::DiagnosticReport;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::process::Command;
 
 // ============================================
 // Status Types
@@ -319,6 +322,152 @@ pub fn delete_skill(id: String) -> Result<(), String> {
 }
 
 // ============================================
+// Skill Sources Commands
+// ============================================
+
+#[tauri::command]
+pub fn list_skill_sources() -> Result<Vec<SkillSource>, String> {
+    Skills::list_sources().map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddSkillSourceInput {
+    id: String,
+    name: String,
+    source_type: String,
+    url: String,
+    description: String,
+    #[serde(default)]
+    fetchable: bool,
+    #[serde(default)]
+    schema: String,
+}
+
+#[tauri::command]
+pub fn add_skill_source(input: AddSkillSourceInput) -> Result<(), String> {
+    let source_type = match input.source_type.as_str() {
+        "official" => SkillSourceType::Official,
+        "marketplace" => SkillSourceType::Marketplace,
+        "community" => SkillSourceType::Community,
+        _ => SkillSourceType::Local,
+    };
+
+    let schema = match input.schema.as_str() {
+        "standard" => SkillSchema::Standard,
+        _ => SkillSchema::Custom,
+    };
+
+    let source = SkillSource {
+        id: input.id,
+        name: input.name,
+        source_type,
+        url: input.url,
+        description: input.description,
+        enabled: true,
+        fetchable: input.fetchable,
+        schema,
+        skill_count: None,
+    };
+
+    Skills::add_source(source).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_skill_source(
+    id: String,
+    enabled: Option<bool>,
+    name: Option<String>,
+    url: Option<String>,
+    description: Option<String>,
+    fetchable: Option<bool>,
+    schema: Option<String>,
+) -> Result<(), String> {
+    let schema = schema.map(|s| match s.as_str() {
+        "standard" => SkillSchema::Standard,
+        _ => SkillSchema::Custom,
+    });
+    Skills::update_source(&id, enabled, name, url, description, fetchable, schema).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn remove_skill_source(id: String) -> Result<(), String> {
+    Skills::remove_source(&id).map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallSkillFromSourceInput {
+    skill_id: String,
+    skill_content: String,
+    source_id: String,
+    source_name: String,
+}
+
+#[tauri::command]
+pub fn install_skill_from_source(input: InstallSkillFromSourceInput) -> Result<Skill, String> {
+    Skills::install_from_source(
+        &input.skill_id,
+        &input.skill_content,
+        &input.source_id,
+        &input.source_name,
+    ).map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallSkillFromRemoteInput {
+    source_url: String,
+    skill_id: String,
+    source_id: String,
+    source_name: String,
+}
+
+#[tauri::command]
+pub async fn install_skill_from_remote(input: InstallSkillFromRemoteInput) -> Result<Skill, String> {
+    Skills::install_from_remote(
+        &input.source_url,
+        &input.skill_id,
+        &input.source_id,
+        &input.source_name,
+    ).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_installed_skill_ids() -> Result<Vec<String>, String> {
+    Skills::installed_ids().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn fetch_remote_skills(source_id: String) -> Result<Vec<RemoteSkill>, String> {
+    let sources = Skills::list_sources().map_err(|e| e.to_string())?;
+
+    let source = sources
+        .into_iter()
+        .find(|s| s.id == source_id)
+        .ok_or_else(|| format!("Source '{}' not found", source_id))?;
+
+    Skills::fetch_from_github(&source).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn fetch_skill_content(url: String) -> Result<String, String> {
+    Skills::fetch_skill_by_url(&url).await.map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FetchRemoteSkillFilesInput {
+    source_url: String,
+    skill_id: String,
+}
+
+#[tauri::command]
+pub async fn fetch_remote_skill_files(input: FetchRemoteSkillFilesInput) -> Result<Vec<RemoteSkillFile>, String> {
+    Skills::fetch_remote_skill_files(&input.source_url, &input.skill_id).await.map_err(|e| e.to_string())
+}
+
+// ============================================
 // Instructions Commands
 // ============================================
 
@@ -330,4 +479,194 @@ pub fn get_instructions() -> Result<Instructions, String> {
 #[tauri::command]
 pub fn update_instructions(content: String) -> Result<(), String> {
     InstructionsManager::update(&content).map_err(|e| e.to_string())
+}
+
+// ============================================
+// Project Commands
+// ============================================
+
+#[tauri::command]
+pub fn get_project_config() -> Result<ProjectConfig, String> {
+    Project::get_config().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_project_config(config: ProjectConfig) -> Result<(), String> {
+    Project::update_config(&config).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_project_status() -> Result<ProjectStatus, String> {
+    Project::get_status().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn fetch_latest_release() -> Result<Option<String>, String> {
+    Project::fetch_latest_release().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn bump_version(bump_type: String) -> Result<String, String> {
+    Project::bump_version(&bump_type).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn create_release(version: String, changelog: String, prerelease: bool) -> Result<String, String> {
+    Project::create_release(&version, &changelog, prerelease).await.map_err(|e| e.to_string())
+}
+
+// ============================================
+// IDE Commands
+// ============================================
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IdeInfo {
+    id: String,
+    name: String,
+    command: String,
+    available: bool,
+}
+
+#[tauri::command]
+pub fn list_available_ides() -> Vec<IdeInfo> {
+    let ides = vec![
+        ("code", "VS Code", "code"),
+        ("cursor", "Cursor", "cursor"),
+        ("zed", "Zed", "zed"),
+        ("windsurf", "Windsurf", "windsurf"),
+        ("neovim", "Neovim (Terminal)", "nvim"),
+        ("vim", "Vim (Terminal)", "vim"),
+    ];
+
+    ides.into_iter()
+        .map(|(id, name, cmd)| {
+            let available = Command::new("which")
+                .arg(cmd)
+                .output()
+                .map(|o| o.status.success())
+                .unwrap_or(false);
+
+            IdeInfo {
+                id: id.to_string(),
+                name: name.to_string(),
+                command: cmd.to_string(),
+                available,
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn open_skill_in_ide(skill_id: String, ide_command: String) -> Result<(), String> {
+    let skill_path = Skills::get_skill_path(&skill_id).map_err(|e| e.to_string())?;
+
+    Command::new(&ide_command)
+        .arg(&skill_path)
+        .spawn()
+        .map_err(|e| format!("Failed to open IDE: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_instructions_in_ide(ide_command: String) -> Result<(), String> {
+    let path = InstructionsManager::get_path().map_err(|e| e.to_string())?;
+
+    Command::new(&ide_command)
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open IDE: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_output_style_in_ide(style_id: String, ide_command: String) -> Result<(), String> {
+    let path = OutputStyles::get_style_path(&style_id).map_err(|e| e.to_string())?;
+
+    Command::new(&ide_command)
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open IDE: {}", e))?;
+
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillFile {
+    name: String,
+    path: String,
+    relative_path: String,
+    is_directory: bool,
+    content: Option<String>,
+    language: Option<String>,
+}
+
+#[tauri::command]
+pub fn get_skill_files(skill_id: String) -> Result<Vec<SkillFile>, String> {
+    let skill_path = Skills::get_skill_path(&skill_id).map_err(|e| e.to_string())?;
+    let mut files = Vec::new();
+
+    collect_skill_files(&skill_path, &skill_path, &mut files)
+        .map_err(|e| format!("Failed to read skill files: {}", e))?;
+
+    Ok(files)
+}
+
+fn collect_skill_files(base_path: &PathBuf, current_path: &PathBuf, files: &mut Vec<SkillFile>) -> std::io::Result<()> {
+    if current_path.is_dir() {
+        for entry in std::fs::read_dir(current_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            let relative = path.strip_prefix(base_path).unwrap_or(&path);
+
+            if path.is_dir() {
+                files.push(SkillFile {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    path: path.display().to_string(),
+                    relative_path: relative.display().to_string(),
+                    is_directory: true,
+                    content: None,
+                    language: None,
+                });
+                collect_skill_files(base_path, &path, files)?;
+            } else {
+                let content = std::fs::read_to_string(&path).ok();
+                let language = detect_language(&path);
+
+                files.push(SkillFile {
+                    name: entry.file_name().to_string_lossy().to_string(),
+                    path: path.display().to_string(),
+                    relative_path: relative.display().to_string(),
+                    is_directory: false,
+                    content,
+                    language,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn detect_language(path: &PathBuf) -> Option<String> {
+    let ext = path.extension()?.to_str()?;
+    let lang = match ext {
+        "md" => "markdown",
+        "ts" | "tsx" => "typescript",
+        "js" | "jsx" => "javascript",
+        "json" => "json",
+        "yaml" | "yml" => "yaml",
+        "toml" => "toml",
+        "rs" => "rust",
+        "py" => "python",
+        "go" => "go",
+        "sh" | "bash" => "bash",
+        "css" => "css",
+        "html" => "html",
+        "sql" => "sql",
+        _ => return None,
+    };
+    Some(lang.to_string())
 }

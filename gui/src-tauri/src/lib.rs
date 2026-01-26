@@ -2,13 +2,42 @@ mod commands;
 
 use commands::*;
 
+/// Set up development mode by detecting the project directory
+fn setup_dev_mode() {
+    // Skip if already set
+    if std::env::var("RHINOLABS_DEV_PATH").is_ok() {
+        return;
+    }
+
+    // Try to find rhinolabs-claude directory relative to current working directory
+    if let Ok(cwd) = std::env::current_dir() {
+        // Check parent directories for rhinolabs-claude
+        let mut dir = cwd.as_path();
+        for _ in 0..5 {
+            let plugin_dir = dir.join("rhinolabs-claude");
+            if plugin_dir.exists() && plugin_dir.join("settings.json").exists() {
+                std::env::set_var("RHINOLABS_DEV_PATH", &plugin_dir);
+                eprintln!("[DEV MODE] Using local plugin directory: {}", plugin_dir.display());
+                return;
+            }
+            if let Some(parent) = dir.parent() {
+                dir = parent;
+            } else {
+                break;
+            }
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    setup_dev_mode();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            // Status & Installation
+            // Status & Installation (for CLI, not GUI primary use)
             get_status,
             install_plugin,
             update_plugin,
@@ -56,9 +85,33 @@ pub fn run() {
             update_skill,
             toggle_skill,
             delete_skill,
+            // Skill Sources
+            list_skill_sources,
+            add_skill_source,
+            update_skill_source,
+            remove_skill_source,
+            install_skill_from_source,
+            install_skill_from_remote,
+            get_installed_skill_ids,
+            fetch_remote_skills,
+            fetch_skill_content,
+            fetch_remote_skill_files,
             // Instructions
             get_instructions,
             update_instructions,
+            // Project & Release
+            get_project_config,
+            update_project_config,
+            get_project_status,
+            fetch_latest_release,
+            bump_version,
+            create_release,
+            // IDE & File Operations
+            list_available_ides,
+            open_skill_in_ide,
+            open_instructions_in_ide,
+            open_output_style_in_ide,
+            get_skill_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -73,11 +73,15 @@ impl McpConfigManager {
     }
 
     /// Update the full MCP config
+    /// Creates the directory if it doesn't exist
     pub fn update(config: &McpConfig) -> Result<()> {
         let path = Self::config_path()?;
 
-        if !path.parent().map(|p| p.exists()).unwrap_or(false) {
-            return Err(RhinolabsError::PluginNotInstalled);
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
         }
 
         let content = serde_json::to_string_pretty(config)?;

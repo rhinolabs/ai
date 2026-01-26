@@ -1,4 +1,4 @@
-use crate::{Paths, Result, RhinolabsError};
+use crate::{Paths, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -38,11 +38,12 @@ impl Manifest {
     }
 
     /// Read the plugin manifest
+    /// Returns default manifest if file doesn't exist
     pub fn get() -> Result<PluginManifest> {
         let path = Self::manifest_path()?;
 
         if !path.exists() {
-            return Err(RhinolabsError::PluginNotInstalled);
+            return Ok(PluginManifest::default());
         }
 
         let content = fs::read_to_string(&path)?;
@@ -52,11 +53,15 @@ impl Manifest {
     }
 
     /// Update the plugin manifest
+    /// Creates the directory if it doesn't exist
     pub fn update(manifest: &PluginManifest) -> Result<()> {
         let path = Self::manifest_path()?;
 
-        if !path.exists() {
-            return Err(RhinolabsError::PluginNotInstalled);
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                fs::create_dir_all(parent)?;
+            }
         }
 
         let content = serde_json::to_string_pretty(manifest)?;

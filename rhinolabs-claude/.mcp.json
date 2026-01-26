@@ -1,5 +1,4 @@
 {
-  "_note": "This file is managed by scripts/sync-mcp-config.sh. DO NOT edit manually. See docs/MCP_CENTRALIZED_CONFIG.md for details.",
   "mcpServers": {
     "git": {
       "command": "npx",
