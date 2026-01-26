@@ -23,6 +23,10 @@ import type {
   IdeInfo,
   SkillFile,
   RemoteSkillFile,
+  Profile,
+  CreateProfileInput,
+  UpdateProfileInput,
+  ProfileInstallResult,
 } from './types';
 
 export const api = {
@@ -361,5 +365,61 @@ export const api = {
 
   getSkillFiles(skillId: string): Promise<SkillFile[]> {
     return invoke('get_skill_files', { skillId });
+  },
+
+  // ============================================
+  // Profiles
+  // ============================================
+
+  listProfiles(): Promise<Profile[]> {
+    return invoke('list_profiles');
+  },
+
+  getProfile(id: string): Promise<Profile | null> {
+    return invoke('get_profile', { id });
+  },
+
+  createProfile(input: CreateProfileInput): Promise<Profile> {
+    return invoke('create_profile', { input });
+  },
+
+  updateProfile(id: string, input: UpdateProfileInput): Promise<Profile> {
+    return invoke('update_profile', { id, input });
+  },
+
+  deleteProfile(id: string): Promise<void> {
+    return invoke('delete_profile', { id });
+  },
+
+  assignSkillsToProfile(profileId: string, skillIds: string[]): Promise<Profile> {
+    return invoke('assign_skills_to_profile', { profileId, skillIds });
+  },
+
+  getProfileSkills(profileId: string): Promise<Skill[]> {
+    return invoke('get_profile_skills', { profileId });
+  },
+
+  getProfilesForSkill(skillId: string): Promise<Profile[]> {
+    return invoke('get_profiles_for_skill', { skillId });
+  },
+
+  getDefaultUserProfile(): Promise<Profile | null> {
+    return invoke('get_default_user_profile');
+  },
+
+  setDefaultUserProfile(profileId: string): Promise<void> {
+    return invoke('set_default_user_profile', { profileId });
+  },
+
+  installProfile(profileId: string, targetPath?: string): Promise<ProfileInstallResult> {
+    return invoke('install_profile', { profileId, targetPath: targetPath ?? null });
+  },
+
+  updateInstalledProfile(profileId: string, targetPath?: string): Promise<ProfileInstallResult> {
+    return invoke('update_installed_profile', { profileId, targetPath: targetPath ?? null });
+  },
+
+  uninstallProfile(targetPath: string): Promise<void> {
+    return invoke('uninstall_profile', { targetPath });
   },
 };

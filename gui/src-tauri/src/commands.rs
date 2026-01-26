@@ -7,6 +7,7 @@ use rhinolabs_core::{
     InstructionsManager, Instructions,
     McpConfigManager, McpConfig, McpServer, McpSettings,
     Project, ProjectConfig, ProjectStatus,
+    Profiles, Profile, CreateProfileInput, UpdateProfileInput, ProfileInstallResult,
 };
 use rhinolabs_core::diagnostics::DiagnosticReport;
 use serde::{Deserialize, Serialize};
@@ -669,4 +670,75 @@ fn detect_language(path: &PathBuf) -> Option<String> {
         _ => return None,
     };
     Some(lang.to_string())
+}
+
+// ============================================
+// Profile Commands
+// ============================================
+
+#[tauri::command]
+pub fn list_profiles() -> Result<Vec<Profile>, String> {
+    Profiles::list().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_profile(id: String) -> Result<Option<Profile>, String> {
+    Profiles::get(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_profile(input: CreateProfileInput) -> Result<Profile, String> {
+    Profiles::create(input).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_profile(id: String, input: UpdateProfileInput) -> Result<Profile, String> {
+    Profiles::update(&id, input).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_profile(id: String) -> Result<(), String> {
+    Profiles::delete(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn assign_skills_to_profile(profile_id: String, skill_ids: Vec<String>) -> Result<Profile, String> {
+    Profiles::assign_skills(&profile_id, skill_ids).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_profile_skills(profile_id: String) -> Result<Vec<Skill>, String> {
+    Profiles::get_profile_skills(&profile_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_profiles_for_skill(skill_id: String) -> Result<Vec<Profile>, String> {
+    Profiles::get_profiles_for_skill(&skill_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_default_user_profile() -> Result<Option<Profile>, String> {
+    Profiles::get_default_user_profile().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_default_user_profile(profile_id: String) -> Result<(), String> {
+    Profiles::set_default_user_profile(&profile_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn install_profile(profile_id: String, target_path: Option<String>) -> Result<ProfileInstallResult, String> {
+    let path = target_path.as_deref().map(std::path::Path::new);
+    Profiles::install(&profile_id, path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_installed_profile(profile_id: String, target_path: Option<String>) -> Result<ProfileInstallResult, String> {
+    let path = target_path.as_deref().map(std::path::Path::new);
+    Profiles::update_installed(&profile_id, path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn uninstall_profile(target_path: String) -> Result<(), String> {
+    Profiles::uninstall(std::path::Path::new(&target_path)).map_err(|e| e.to_string())
 }

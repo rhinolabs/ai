@@ -13,6 +13,10 @@ pub mod skills;
 pub mod instructions;
 pub mod mcp_config;
 pub mod project;
+pub mod profiles;
+
+#[cfg(test)]
+mod test_utils;
 
 pub use error::{Result, RhinolabsError};
 pub use installer::Installer;
@@ -28,3 +32,4 @@ pub use skills::{Skills, Skill, SkillCategory, CreateSkillInput, UpdateSkillInpu
 pub use instructions::{InstructionsManager, Instructions};
 pub use mcp_config::{McpConfigManager, McpConfig, McpServer, McpSettings};
 pub use project::{Project, ProjectConfig, ProjectStatus, GitHubConfig, ReleaseAsset};
+pub use profiles::{Profiles, Profile, ProfileType, CreateProfileInput, UpdateProfileInput, ProfileInstallResult, SkillInstallError};

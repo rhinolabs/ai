@@ -253,3 +253,51 @@ export interface RemoteSkillFile {
   downloadUrl: string | null;
   language: string | null;
 }
+
+// ============================================
+// Profiles
+// ============================================
+
+export type ProfileType = 'user' | 'project';
+
+export interface Profile {
+  id: string;
+  name: string;
+  description: string;
+  profileType: ProfileType;
+  skills: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateProfileInput {
+  id: string;
+  name: string;
+  description: string;
+  profileType: ProfileType;
+}
+
+export interface UpdateProfileInput {
+  name?: string;
+  description?: string;
+  profileType?: ProfileType;
+}
+
+export interface ProfileInstallResult {
+  profileId: string;
+  profileName: string;
+  targetPath: string;
+  skillsInstalled: string[];
+  skillsFailed: SkillInstallError[];
+  /** For Main-Profile: indicates if instructions were installed */
+  instructionsInstalled?: boolean;
+  /** For Main-Profile: indicates if settings were installed */
+  settingsInstalled?: boolean;
+  /** For Main-Profile: name of the output style installed */
+  outputStyleInstalled?: string;
+}
+
+export interface SkillInstallError {
+  skillId: string;
+  error: string;
+}

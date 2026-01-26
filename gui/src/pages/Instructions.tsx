@@ -68,6 +68,25 @@ export default function Instructions() {
         </button>
       </div>
 
+      {/* Main-Profile Link Notice */}
+      <div style={{
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        borderRadius: '0.5rem',
+        padding: '0.75rem 1rem',
+        marginBottom: '1rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        fontSize: '0.875rem',
+        color: 'var(--text-secondary)',
+      }}>
+        <span style={{ color: '#8b5cf6' }}>●</span>
+        <span>
+          <strong>Linked to Main-Profile:</strong> These instructions are installed to <code>~/.claude/CLAUDE.md</code> when you run <code>rhinolabs install</code>
+        </span>
+      </div>
+
       <div className="card">
         {instructions?.lastModified && (
           <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.875rem' }}>

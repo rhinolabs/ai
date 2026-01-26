@@ -63,6 +63,53 @@ enum Commands {
 
     /// Show version information
     Version,
+
+    /// Manage skill profiles
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ProfileAction {
+    /// List all profiles
+    List,
+
+    /// Show details of a specific profile
+    Show {
+        /// Profile ID to show
+        profile_id: String,
+    },
+
+    /// Install a profile to a project
+    Install {
+        /// Profile ID to install
+        #[arg(short, long)]
+        profile: String,
+
+        /// Target project path (required for Project profiles)
+        #[arg(short = 'P', long)]
+        path: Option<String>,
+    },
+
+    /// Update an installed profile with latest skill versions
+    Update {
+        /// Profile ID to update
+        #[arg(short, long)]
+        profile: String,
+
+        /// Target project path (required for Project profiles)
+        #[arg(short = 'P', long)]
+        path: Option<String>,
+    },
+
+    /// Uninstall profile from a project (removes .claude directory)
+    Uninstall {
+        /// Target project path to uninstall from
+        #[arg(short = 'P', long)]
+        path: String,
+    },
 }
 
 #[tokio::main]
@@ -90,6 +137,25 @@ async fn main() -> anyhow::Result<()> {
         }
         Some(Commands::Version) => {
             version::run();
+        }
+        Some(Commands::Profile { action }) => {
+            match action {
+                ProfileAction::List => {
+                    profile::list()?;
+                }
+                ProfileAction::Show { profile_id } => {
+                    profile::show(&profile_id)?;
+                }
+                ProfileAction::Install { profile, path } => {
+                    profile::install(&profile, path)?;
+                }
+                ProfileAction::Update { profile, path } => {
+                    profile::update(&profile, path)?;
+                }
+                ProfileAction::Uninstall { path } => {
+                    profile::uninstall(&path)?;
+                }
+            }
         }
         None => {
             // Interactive mode

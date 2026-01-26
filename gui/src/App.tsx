@@ -6,6 +6,7 @@ import Settings from "./pages/Settings";
 import OutputStyle from "./pages/OutputStyle";
 import Mcp from "./pages/Mcp";
 import Skills from "./pages/Skills";
+import Profiles from "./pages/Profiles";
 import Instructions from "./pages/Instructions";
 import Diagnostics from "./pages/Diagnostics";
 import Release from "./pages/Release";
@@ -51,6 +52,11 @@ function App() {
             </NavLink>
           </li>
           <li>
+            <NavLink to="/profiles" onClick={() => setSidebarOpen(false)}>
+              Profiles
+            </NavLink>
+          </li>
+          <li>
             <NavLink to="/settings" onClick={() => setSidebarOpen(false)}>
               Settings
             </NavLink>
@@ -80,6 +86,7 @@ function App() {
           <Route path="/output-style" element={<OutputStyle />} />
           <Route path="/mcp" element={<Mcp />} />
           <Route path="/skills" element={<Skills />} />
+          <Route path="/profiles" element={<Profiles />} />
           <Route path="/instructions" element={<Instructions />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
           <Route path="/release" element={<Release />} />

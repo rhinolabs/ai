@@ -79,6 +79,7 @@
         path: '/skills/rhinolabs-standards/SKILL.md',
         content: '# Rhinolabs Standards\n\n...',
         isCustom: false,
+        isModified: false,
       },
       {
         id: 'react-patterns',
@@ -89,6 +90,7 @@
         path: '/skills/react-patterns/SKILL.md',
         content: '# React Patterns\n\n...',
         isCustom: false,
+        isModified: false,
       },
       {
         id: 'typescript-best-practices',
@@ -99,6 +101,7 @@
         path: '/skills/typescript-best-practices/SKILL.md',
         content: '# TypeScript Best Practices\n\n...',
         isCustom: false,
+        isModified: false,
       },
       {
         id: 'playwright',
@@ -109,7 +112,39 @@
         path: '/skills/playwright/SKILL.md',
         content: '# Playwright\n\n...',
         isCustom: false,
+        isModified: false,
       },
+    ],
+
+    // Skill Sources
+    skillSources: [
+      {
+        id: 'anthropic-official',
+        name: 'Anthropic Official',
+        sourceType: 'official',
+        url: 'https://github.com/anthropics/claude-code-skills',
+        description: 'Official skills from Anthropic',
+        enabled: true,
+        fetchable: true,
+        schema: 'standard',
+      },
+      {
+        id: 'community-skills',
+        name: 'Community Skills',
+        sourceType: 'community',
+        url: 'https://agentskills.io',
+        description: 'Community-contributed skills',
+        enabled: true,
+        fetchable: false,
+        schema: 'standard',
+      },
+    ],
+
+    // Available IDEs
+    availableIdes: [
+      { id: 'vscode', name: 'VS Code', command: 'code', available: true },
+      { id: 'cursor', name: 'Cursor', command: 'cursor', available: true },
+      { id: 'zed', name: 'Zed', command: 'zed', available: false },
     ],
 
     // Instructions
@@ -117,6 +152,29 @@
       content: '# Instructions\n\n## Rules\n- NEVER add Co-Authored-By...',
       lastModified: '2026-01-20T10:00:00Z',
     },
+
+    // Profiles
+    profiles: [
+      {
+        id: 'main',
+        name: 'Main Profile',
+        description: 'User-level skills that apply to all projects. Install with: rhinolabs install',
+        profileType: 'user',
+        skills: ['rhinolabs-standards'],
+        createdAt: '2026-01-20T10:00:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+      },
+      {
+        id: 'react-stack',
+        name: 'React 19 Stack',
+        description: 'Skills for React 19 projects with TypeScript and Tailwind',
+        profileType: 'project',
+        skills: ['react-patterns', 'typescript-best-practices'],
+        createdAt: '2026-01-20T10:00:00Z',
+        updatedAt: '2026-01-20T10:00:00Z',
+      },
+    ],
+    defaultUserProfile: 'main',
   };
 
   // ============================================
@@ -441,6 +499,266 @@
         const { content } = args;
         state.instructions.content = content;
         state.instructions.lastModified = new Date().toISOString();
+        return null;
+      }
+
+      // ----------------------------------------
+      // IDE Commands
+      // ----------------------------------------
+      case 'list_available_ides':
+        return state.availableIdes.map((ide) => ({ ...ide }));
+
+      case 'open_instructions_in_ide': {
+        const { ide_command } = args;
+        console.log(`[TauriMock] Opening instructions in IDE: ${ide_command}`);
+        return null;
+      }
+
+      case 'open_output_style_in_ide': {
+        const { style_id, ide_command } = args;
+        console.log(`[TauriMock] Opening output style ${style_id} in IDE: ${ide_command}`);
+        return null;
+      }
+
+      case 'open_skill_in_ide': {
+        const { skill_id, ide_command } = args;
+        console.log(`[TauriMock] Opening skill ${skill_id} in IDE: ${ide_command}`);
+        return null;
+      }
+
+      // ----------------------------------------
+      // Skill Sources
+      // ----------------------------------------
+      case 'list_skill_sources':
+        return state.skillSources.map((s) => ({ ...s }));
+
+      case 'add_skill_source': {
+        const { source } = args;
+        if (state.skillSources.find((s) => s.id === source.id)) {
+          throw new Error(`Source "${source.id}" already exists`);
+        }
+        state.skillSources.push({ ...source });
+        return null;
+      }
+
+      case 'update_skill_source': {
+        const { id, source } = args;
+        const index = state.skillSources.findIndex((s) => s.id === id);
+        if (index === -1) {
+          throw new Error(`Source "${id}" not found`);
+        }
+        state.skillSources[index] = { ...state.skillSources[index], ...source };
+        return null;
+      }
+
+      case 'remove_skill_source': {
+        const { id } = args;
+        state.skillSources = state.skillSources.filter((s) => s.id !== id);
+        return null;
+      }
+
+      case 'fetch_remote_skills': {
+        const { source_id } = args;
+        // Return mock remote skills
+        return [
+          {
+            id: 'remote-skill-1',
+            name: 'Remote Skill 1',
+            description: 'A remote skill from ' + source_id,
+            category: 'remote',
+            installed: false,
+          },
+          {
+            id: 'remote-skill-2',
+            name: 'Remote Skill 2',
+            description: 'Another remote skill',
+            category: 'remote',
+            installed: true,
+          },
+        ];
+      }
+
+      case 'fetch_remote_skill_files': {
+        const { source_id, skill_id } = args;
+        return [
+          { path: 'SKILL.md', type: 'file' },
+          { path: 'examples', type: 'directory' },
+          { path: 'examples/good.ts', type: 'file' },
+          { path: 'examples/bad.ts', type: 'file' },
+        ];
+      }
+
+      case 'fetch_skill_content': {
+        const { source_id, skill_id, file_path } = args;
+        return `# Remote Skill Content\n\nContent of ${file_path} from ${skill_id}`;
+      }
+
+      case 'install_skill_from_remote': {
+        const { source_id, skill_id } = args;
+        console.log(`[TauriMock] Installing skill ${skill_id} from ${source_id}`);
+        return null;
+      }
+
+      case 'get_skill_files': {
+        const { id } = args;
+        return [
+          { path: 'SKILL.md', type: 'file' },
+          { path: 'examples', type: 'directory' },
+          { path: 'examples/good.ts', type: 'file' },
+          { path: 'examples/bad.ts', type: 'file' },
+        ];
+      }
+
+      case 'get_skill_file_content': {
+        const { skill_id, file_path } = args;
+        if (file_path === 'SKILL.md') {
+          return '# Skill Content\n\nThis is the main SKILL.md file content.';
+        }
+        return `// Content of ${file_path}`;
+      }
+
+      // ----------------------------------------
+      // Profiles
+      // ----------------------------------------
+      case 'list_profiles':
+        return state.profiles.map((p) => ({ ...p }));
+
+      case 'get_profile': {
+        const { id } = args;
+        const profile = state.profiles.find((p) => p.id === id);
+        return profile ? { ...profile } : null;
+      }
+
+      case 'create_profile': {
+        const { input } = args;
+        if (state.profiles.find((p) => p.id === input.id)) {
+          throw new Error(`Profile "${input.id}" already exists`);
+        }
+        // Only Main-Profile can be User type
+        if (input.profileType === 'user') {
+          throw new Error('Only the Main-Profile can be of type User. New profiles must be Project type.');
+        }
+        const now = new Date().toISOString();
+        const newProfile = {
+          ...input,
+          profileType: 'project', // Always project for new profiles
+          skills: [],
+          createdAt: now,
+          updatedAt: now,
+        };
+        state.profiles.push(newProfile);
+        return { ...newProfile };
+      }
+
+      case 'update_profile': {
+        const { id, input } = args;
+        const index = state.profiles.findIndex((p) => p.id === id);
+        if (index === -1) {
+          throw new Error(`Profile "${id}" not found`);
+        }
+        // Don't allow changing profileType
+        const { profileType, ...safeInput } = input;
+        state.profiles[index] = {
+          ...state.profiles[index],
+          ...safeInput,
+          updatedAt: new Date().toISOString(),
+        };
+        return { ...state.profiles[index] };
+      }
+
+      case 'delete_profile': {
+        const { id } = args;
+        if (id === 'main') {
+          throw new Error('Cannot delete the Main Profile. You can remove all skills from it instead.');
+        }
+        const index = state.profiles.findIndex((p) => p.id === id);
+        if (index === -1) {
+          throw new Error(`Profile "${id}" not found`);
+        }
+        state.profiles.splice(index, 1);
+        if (state.defaultUserProfile === id) {
+          state.defaultUserProfile = null;
+        }
+        return null;
+      }
+
+      case 'assign_skills_to_profile': {
+        const { profileId, skillIds } = args;
+        const index = state.profiles.findIndex((p) => p.id === profileId);
+        if (index === -1) {
+          throw new Error(`Profile "${profileId}" not found`);
+        }
+        state.profiles[index].skills = [...skillIds];
+        state.profiles[index].updatedAt = new Date().toISOString();
+        return { ...state.profiles[index] };
+      }
+
+      case 'get_profile_skills': {
+        const { profileId } = args;
+        const profile = state.profiles.find((p) => p.id === profileId);
+        if (!profile) {
+          throw new Error(`Profile "${profileId}" not found`);
+        }
+        return state.skills.filter((s) => profile.skills.includes(s.id));
+      }
+
+      case 'get_profiles_for_skill': {
+        const { skillId } = args;
+        return state.profiles.filter((p) => p.skills.includes(skillId));
+      }
+
+      case 'get_default_user_profile': {
+        if (!state.defaultUserProfile) return null;
+        const profile = state.profiles.find((p) => p.id === state.defaultUserProfile);
+        return profile ? { ...profile } : null;
+      }
+
+      case 'set_default_user_profile': {
+        const { profileId } = args;
+        const profile = state.profiles.find((p) => p.id === profileId);
+        if (!profile) {
+          throw new Error(`Profile "${profileId}" not found`);
+        }
+        if (profile.profileType !== 'user') {
+          throw new Error(`Profile "${profileId}" is not a User profile`);
+        }
+        state.defaultUserProfile = profileId;
+        return null;
+      }
+
+      case 'install_profile': {
+        const { profileId, targetPath } = args;
+        const profile = state.profiles.find((p) => p.id === profileId);
+        if (!profile) {
+          throw new Error(`Profile "${profileId}" not found`);
+        }
+        return {
+          profileId: profile.id,
+          profileName: profile.name,
+          targetPath: targetPath || '~/.claude/skills',
+          skillsInstalled: profile.skills,
+          skillsFailed: [],
+        };
+      }
+
+      case 'update_installed_profile': {
+        const { profileId, targetPath } = args;
+        const profile = state.profiles.find((p) => p.id === profileId);
+        if (!profile) {
+          throw new Error(`Profile "${profileId}" not found`);
+        }
+        return {
+          profileId: profile.id,
+          profileName: profile.name,
+          targetPath: targetPath || '~/.claude/skills',
+          skillsInstalled: profile.skills,
+          skillsFailed: [],
+        };
+      }
+
+      case 'uninstall_profile': {
+        const { targetPath } = args;
+        console.log(`[TauriMock] Uninstalling profile from ${targetPath}`);
         return null;
       }
 

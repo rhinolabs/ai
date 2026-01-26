@@ -112,6 +112,20 @@ pub fn run() {
             open_instructions_in_ide,
             open_output_style_in_ide,
             get_skill_files,
+            // Profiles
+            list_profiles,
+            get_profile,
+            create_profile,
+            update_profile,
+            delete_profile,
+            assign_skills_to_profile,
+            get_profile_skills,
+            get_profiles_for_skill,
+            get_default_user_profile,
+            set_default_user_profile,
+            install_profile,
+            update_installed_profile,
+            uninstall_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

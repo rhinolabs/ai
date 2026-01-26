@@ -162,18 +162,40 @@ export default function Skills() {
   }
 
   async function handleCreate() {
+    alert('handleCreate called! formData: ' + JSON.stringify(formData));
+
     if (!formData.id.trim() || !formData.name.trim()) {
+      console.log('Validation failed: ID or name empty');
       toast.error('ID and name are required');
       return;
     }
+
+    console.log('Calling api.createSkill...');
     try {
-      await api.createSkill(formData);
+      const result = await api.createSkill(formData);
+      console.log('Success! Result:', result);
       toast.success('Skill created');
       setCreating(false);
       resetForm();
       loadData();
-    } catch (err) {
-      toast.error('Failed to create skill');
+    } catch (err: unknown) {
+      console.log('=== CATCH BLOCK ===');
+      console.log('Error type:', typeof err);
+      console.log('Error value:', err);
+      console.log('Error stringified:', JSON.stringify(err));
+
+      // Tauri returns error as string directly
+      let message = 'Unknown error';
+      if (typeof err === 'string') {
+        message = err;
+      } else if (err instanceof Error) {
+        message = err.message;
+      } else if (err && typeof err === 'object') {
+        message = JSON.stringify(err);
+      }
+
+      console.log('Final message:', message);
+      toast.error(message, { duration: 10000 });
     }
   }
 

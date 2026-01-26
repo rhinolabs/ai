@@ -108,6 +108,25 @@ export default function Settings() {
         <p>Configure permissions, environment variables, and status line</p>
       </div>
 
+      {/* Main-Profile Link Notice */}
+      <div style={{
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        borderRadius: '0.5rem',
+        padding: '0.75rem 1rem',
+        marginBottom: '1rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        fontSize: '0.875rem',
+        color: 'var(--text-secondary)',
+      }}>
+        <span style={{ color: '#8b5cf6' }}>●</span>
+        <span>
+          <strong>Linked to Main-Profile:</strong> These settings are installed to <code>~/.claude/settings.json</code> when you run <code>rhinolabs install</code>
+        </span>
+      </div>
+
       {/* Permissions */}
       <div className="card">
         <h2>Permissions</h2>

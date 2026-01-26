@@ -81,6 +81,25 @@ export default function OutputStyle() {
         </button>
       </div>
 
+      {/* Main-Profile Link Notice */}
+      <div style={{
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        borderRadius: '0.5rem',
+        padding: '0.75rem 1rem',
+        marginBottom: '1rem',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        fontSize: '0.875rem',
+        color: 'var(--text-secondary)',
+      }}>
+        <span style={{ color: '#8b5cf6' }}>●</span>
+        <span>
+          <strong>Linked to Main-Profile:</strong> This output style is installed to <code>~/.claude/output-styles/</code> when you run <code>rhinolabs install</code>
+        </span>
+      </div>
+
       <div className="card">
         {style && (
           <div style={{ marginBottom: '1rem' }}>

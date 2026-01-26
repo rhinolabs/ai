@@ -1,5 +1,5 @@
 use crate::{Result, RhinolabsError};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Platform-specific path resolution
 pub struct Paths;
@@ -13,6 +13,34 @@ impl Paths {
     /// Get the development path if set
     fn dev_path() -> Option<PathBuf> {
         std::env::var("RHINOLABS_DEV_PATH").ok().map(PathBuf::from)
+    }
+
+    /// Get rhinolabs config directory: ~/.config/rhinolabs-ai/
+    /// Used for storing profiles.json and other rhinolabs-specific config
+    pub fn rhinolabs_config_dir() -> Result<PathBuf> {
+        // Allow override for testing
+        if let Ok(path) = std::env::var("RHINOLABS_CONFIG_PATH") {
+            return Ok(PathBuf::from(path).parent().unwrap_or(Path::new("")).to_path_buf());
+        }
+
+        let config_dir = dirs::config_dir()
+            .ok_or_else(|| RhinolabsError::Other("Could not find config directory".into()))?
+            .join("rhinolabs-ai");
+        Ok(config_dir)
+    }
+
+    /// Get Claude user directory: ~/.claude/
+    /// Used for user-level skills and configurations
+    pub fn claude_user_dir() -> Result<PathBuf> {
+        let home = dirs::home_dir()
+            .ok_or_else(|| RhinolabsError::Other("Could not find home directory".into()))?;
+        Ok(home.join(".claude"))
+    }
+
+    /// Get Claude project directory for a given project path: /project/.claude/
+    /// Used for project-level skills and configurations
+    pub fn claude_project_dir(project_path: &Path) -> PathBuf {
+        project_path.join(".claude")
     }
 
     /// Get Claude Code plugins directory
@@ -87,6 +115,7 @@ impl Paths {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::ENV_MUTEX;
 
     #[test]
     fn test_claude_code_plugins_dir() {
@@ -100,10 +129,56 @@ mod tests {
 
     #[test]
     fn test_plugin_dir() {
+        // Acquire mutex to ensure no other test has RHINOLABS_DEV_PATH set
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        // Save and clear any existing dev path
+        let original = std::env::var("RHINOLABS_DEV_PATH").ok();
+        std::env::remove_var("RHINOLABS_DEV_PATH");
+
         let dir = Paths::plugin_dir();
         assert!(dir.is_ok());
 
         let path = dir.unwrap();
         assert!(path.to_str().unwrap().contains("rhinolabs-claude"));
+
+        // Restore original if any
+        if let Some(val) = original {
+            std::env::set_var("RHINOLABS_DEV_PATH", val);
+        }
+    }
+
+    #[test]
+    fn test_plugin_dir_with_dev_path() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        // Set a custom dev path
+        let test_path = "/tmp/test-rhinolabs-dev";
+        std::env::set_var("RHINOLABS_DEV_PATH", test_path);
+
+        let dir = Paths::plugin_dir();
+        assert!(dir.is_ok());
+
+        let path = dir.unwrap();
+        assert_eq!(path.to_str().unwrap(), test_path);
+
+        // Clean up
+        std::env::remove_var("RHINOLABS_DEV_PATH");
+    }
+
+    #[test]
+    fn test_is_dev_mode() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        // Clear dev path
+        std::env::remove_var("RHINOLABS_DEV_PATH");
+        assert!(!Paths::is_dev_mode());
+
+        // Set dev path
+        std::env::set_var("RHINOLABS_DEV_PATH", "/tmp/test");
+        assert!(Paths::is_dev_mode());
+
+        // Clean up
+        std::env::remove_var("RHINOLABS_DEV_PATH");
     }
 }

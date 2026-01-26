@@ -1,4 +1,4 @@
-use crate::{Paths, Result, RhinolabsError};
+use crate::{Paths, Profiles, Profile, Result, RhinolabsError};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
@@ -432,7 +432,8 @@ impl Skills {
 
     /// Create a new custom skill
     pub fn create(input: CreateSkillInput) -> Result<Skill> {
-        let skill_dir = Self::skills_dir()?.join(&input.id);
+        let skills_dir = Self::skills_dir()?;
+        let skill_dir = skills_dir.join(&input.id);
 
         if skill_dir.exists() {
             return Err(RhinolabsError::ConfigError(
@@ -440,18 +441,34 @@ impl Skills {
             ));
         }
 
-        // Create skill directory
-        fs::create_dir_all(&skill_dir)?;
+        // Create skill directory (and all parent directories)
+        fs::create_dir_all(&skill_dir).map_err(|e| {
+            RhinolabsError::ConfigError(format!(
+                "Failed to create skill directory '{}': {}. Make sure you have write permissions.",
+                skill_dir.display(),
+                e
+            ))
+        })?;
 
         // Create SKILL.md
         let file_content = Self::generate_skill_file(&input.name, &input.description, &input.content);
         let skill_file = skill_dir.join("SKILL.md");
-        fs::write(&skill_file, &file_content)?;
+        fs::write(&skill_file, &file_content).map_err(|e| {
+            RhinolabsError::ConfigError(format!(
+                "Failed to write skill file '{}': {}",
+                skill_file.display(),
+                e
+            ))
+        })?;
 
         // Update config to mark as custom
-        let mut config = Self::load_config()?;
+        let mut config = Self::load_config().map_err(|e| {
+            RhinolabsError::ConfigError(format!("Failed to load skills config: {}", e))
+        })?;
         config.custom.push(input.id.clone());
-        Self::save_config(&config)?;
+        Self::save_config(&config).map_err(|e| {
+            RhinolabsError::ConfigError(format!("Failed to save skills config: {}", e))
+        })?;
 
         // Return the created skill
         let config = Self::load_config()?;
@@ -549,6 +566,33 @@ impl Skills {
         Self::save_config(&config)?;
 
         Ok(())
+    }
+
+    // ============================================
+    // Profile-based Skill Queries
+    // ============================================
+
+    /// List skills assigned to a specific profile
+    pub fn list_by_profile(profile_id: &str) -> Result<Vec<Skill>> {
+        // Get the profile to get its skill IDs
+        let profile = Profiles::get(profile_id)?
+            .ok_or_else(|| RhinolabsError::ConfigError(
+                format!("Profile '{}' not found", profile_id)
+            ))?;
+
+        let mut skills = Vec::new();
+        for skill_id in &profile.skills {
+            if let Some(skill) = Self::get(skill_id)? {
+                skills.push(skill);
+            }
+        }
+
+        Ok(skills)
+    }
+
+    /// Get profiles that contain a specific skill
+    pub fn get_assigned_profiles(skill_id: &str) -> Result<Vec<Profile>> {
+        Profiles::get_profiles_for_skill(skill_id)
     }
 
     // ============================================
@@ -1092,6 +1136,45 @@ pub struct RemoteSkillFile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::{ENV_MUTEX, TestEnv as BaseTestEnv};
+
+    /// Extended test environment with skills-specific helpers
+    struct TestEnv {
+        base: BaseTestEnv,
+    }
+
+    impl TestEnv {
+        fn new() -> Self {
+            TestEnv {
+                base: BaseTestEnv::new(),
+            }
+        }
+
+        fn plugin_dir(&self) -> PathBuf {
+            self.base.plugin_dir()
+        }
+
+        fn skills_dir(&self) -> PathBuf {
+            self.plugin_dir().join("skills")
+        }
+
+        fn setup_skills_dir(&self) {
+            fs::create_dir_all(self.skills_dir()).expect("Failed to create skills dir");
+        }
+
+        fn create_skill(&self, id: &str, name: &str, description: &str, content: &str) {
+            let skill_dir = self.skills_dir().join(id);
+            fs::create_dir_all(&skill_dir).expect("Failed to create skill dir");
+            let skill_content = Skills::generate_skill_file(name, description, content);
+            fs::write(skill_dir.join("SKILL.md"), skill_content).expect("Failed to write skill file");
+        }
+
+        fn create_config(&self, config: &SkillsConfig) {
+            let config_path = self.plugin_dir().join(".skills-config.json");
+            let content = serde_json::to_string_pretty(config).expect("Failed to serialize config");
+            fs::write(config_path, content).expect("Failed to write config");
+        }
+    }
 
     #[test]
     fn test_parse_skill_file() {
@@ -1112,6 +1195,21 @@ This is the content.
         assert_eq!(frontmatter.name, "test-skill");
         assert!(frontmatter.description.contains("test skill"));
         assert!(markdown.contains("# Test Skill"));
+    }
+
+    #[test]
+    fn test_parse_skill_file_invalid_no_frontmatter() {
+        let content = "# Just markdown without frontmatter";
+        let result = Skills::parse_skill_file(content);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("frontmatter"));
+    }
+
+    #[test]
+    fn test_parse_skill_file_invalid_incomplete_frontmatter() {
+        let content = "---\nname: test\n";
+        let result = Skills::parse_skill_file(content);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1140,5 +1238,501 @@ This is the content.
 
         assert!(config.disabled.is_empty());
         assert!(config.custom.is_empty());
+    }
+
+    #[test]
+    fn test_hash_content_consistency() {
+        let content = "Some content to hash";
+        let hash1 = Skills::hash_content(content);
+        let hash2 = Skills::hash_content(content);
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_content_different_for_different_content() {
+        let hash1 = Skills::hash_content("Content A");
+        let hash2 = Skills::hash_content("Content B");
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_detect_language_from_name() {
+        assert_eq!(Skills::detect_language_from_name("test.md"), Some("markdown".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.ts"), Some("typescript".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.tsx"), Some("typescript".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.js"), Some("javascript".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.py"), Some("python".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.rs"), Some("rust".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.go"), Some("go".to_string()));
+        assert_eq!(Skills::detect_language_from_name("test.unknown"), None);
+        assert_eq!(Skills::detect_language_from_name("noextension"), None);
+    }
+
+    // ============================================
+    // list_sources() Tests
+    // ============================================
+
+    #[test]
+    fn test_list_sources_returns_defaults_when_no_config() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let sources = Skills::list_sources().expect("Should list sources");
+        assert_eq!(sources.len(), 3);
+
+        let official = sources.iter().find(|s| s.id == "anthropic-official");
+        assert!(official.is_some());
+        assert!(official.unwrap().fetchable);
+
+        let vercel = sources.iter().find(|s| s.id == "vercel-agent-skills");
+        assert!(vercel.is_some());
+        assert!(vercel.unwrap().fetchable);
+
+        let awesome = sources.iter().find(|s| s.id == "awesome-claude-skills");
+        assert!(awesome.is_some());
+        assert!(!awesome.unwrap().fetchable); // Browse only
+    }
+
+    #[test]
+    fn test_list_sources_merges_fetchable_from_defaults() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Create a config where anthropic-official has fetchable=false (old saved config)
+        let config = SkillsConfig {
+            sources: vec![
+                SkillSource {
+                    id: "anthropic-official".to_string(),
+                    name: "Anthropic Official".to_string(),
+                    source_type: SkillSourceType::Official,
+                    url: "https://github.com/anthropics/skills".to_string(),
+                    description: "Official skills".to_string(),
+                    enabled: true,
+                    fetchable: false, // Old saved value
+                    schema: SkillSchema::Standard,
+                    skill_count: None,
+                },
+            ],
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        let sources = Skills::list_sources().expect("Should list sources");
+
+        // The anthropic-official source should have fetchable=true after merge
+        let official = sources.iter().find(|s| s.id == "anthropic-official").unwrap();
+        assert!(official.fetchable, "fetchable should be merged from defaults");
+    }
+
+    #[test]
+    fn test_list_sources_preserves_custom_sources() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let config = SkillsConfig {
+            sources: vec![
+                SkillSource {
+                    id: "custom-source".to_string(),
+                    name: "My Custom Source".to_string(),
+                    source_type: SkillSourceType::Local,
+                    url: "https://example.com/skills".to_string(),
+                    description: "Custom source".to_string(),
+                    enabled: true,
+                    fetchable: false,
+                    schema: SkillSchema::Custom,
+                    skill_count: None,
+                },
+            ],
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        let sources = Skills::list_sources().expect("Should list sources");
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].id, "custom-source");
+    }
+
+    // ============================================
+    // delete() Tests
+    // ============================================
+
+    #[test]
+    fn test_delete_custom_skill_succeeds() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("my-custom-skill", "My Custom Skill", "A custom skill", "# Content");
+
+        // Mark it as custom in config
+        let config = SkillsConfig {
+            custom: vec!["my-custom-skill".to_string()],
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        // Verify it exists
+        let skill = Skills::get("my-custom-skill").expect("Should get skill");
+        assert!(skill.is_some());
+
+        // Delete it
+        let result = Skills::delete("my-custom-skill");
+        assert!(result.is_ok());
+
+        // Verify it's gone
+        let skill = Skills::get("my-custom-skill").expect("Should get skill");
+        assert!(skill.is_none());
+    }
+
+    #[test]
+    fn test_delete_source_installed_skill_succeeds() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("installed-skill", "Installed Skill", "From source", "# Content");
+
+        // Mark it with source metadata (installed from source)
+        let mut skill_meta = std::collections::HashMap::new();
+        skill_meta.insert("installed-skill".to_string(), SkillMeta {
+            source_id: Some("anthropic-official".to_string()),
+            source_name: Some("Anthropic Official".to_string()),
+            original_hash: Some("abc123".to_string()),
+        });
+        let config = SkillsConfig {
+            skill_meta,
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        // Delete it
+        let result = Skills::delete("installed-skill");
+        assert!(result.is_ok());
+
+        // Verify it's gone
+        let skill = Skills::get("installed-skill").expect("Should get skill");
+        assert!(skill.is_none());
+    }
+
+    #[test]
+    fn test_delete_builtin_skill_fails() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("react-patterns", "React Patterns", "Built-in skill", "# Content");
+
+        // Don't mark it as custom or with source metadata
+        let config = SkillsConfig::default();
+        env.create_config(&config);
+
+        // Try to delete it
+        let result = Skills::delete("react-patterns");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Cannot delete built-in skill"));
+    }
+
+    #[test]
+    fn test_delete_nonexistent_skill_fails() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Mark it as custom so delete logic passes that check
+        let config = SkillsConfig {
+            custom: vec!["nonexistent".to_string()],
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        let result = Skills::delete("nonexistent");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    // ============================================
+    // get_skill_path() Tests
+    // ============================================
+
+    #[test]
+    fn test_get_skill_path_returns_correct_path() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("my-skill", "My Skill", "Description", "# Content");
+
+        let path = Skills::get_skill_path("my-skill").expect("Should get path");
+        assert!(path.exists());
+        assert!(path.is_dir());
+        assert!(path.join("SKILL.md").exists());
+    }
+
+    #[test]
+    fn test_get_skill_path_nonexistent_fails() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let result = Skills::get_skill_path("nonexistent-skill");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    // ============================================
+    // list() Tests
+    // ============================================
+
+    #[test]
+    fn test_list_returns_empty_when_no_skills_dir() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let _env = TestEnv::new();
+        // Don't create skills dir
+
+        let skills = Skills::list().expect("Should list skills");
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn test_list_returns_all_skills() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("skill-a", "Skill A", "First skill", "# A");
+        env.create_skill("skill-b", "Skill B", "Second skill", "# B");
+
+        let skills = Skills::list().expect("Should list skills");
+        assert_eq!(skills.len(), 2);
+    }
+
+    #[test]
+    fn test_list_sorts_by_category_then_name() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Create skills in different categories (using known built-in IDs)
+        env.create_skill("rhinolabs-standards", "Rhinolabs Standards", "Corporate", "# Corp");
+        env.create_skill("react-patterns", "React Patterns", "Frontend", "# Frontend");
+        env.create_skill("custom-skill", "Custom Skill", "Custom", "# Custom");
+
+        let skills = Skills::list().expect("Should list skills");
+        assert_eq!(skills.len(), 3);
+
+        // Corporate should be first
+        assert_eq!(skills[0].id, "rhinolabs-standards");
+        // Frontend second
+        assert_eq!(skills[1].id, "react-patterns");
+        // Custom last
+        assert_eq!(skills[2].id, "custom-skill");
+    }
+
+    // ============================================
+    // get() Tests
+    // ============================================
+
+    #[test]
+    fn test_get_returns_skill_when_exists() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("test-skill", "Test Skill", "A test", "# Content here");
+
+        let skill = Skills::get("test-skill").expect("Should get skill");
+        assert!(skill.is_some());
+
+        let skill = skill.unwrap();
+        assert_eq!(skill.id, "test-skill");
+        assert_eq!(skill.name, "Test Skill");
+        assert_eq!(skill.description, "A test");
+        assert!(skill.content.contains("# Content here"));
+    }
+
+    #[test]
+    fn test_get_returns_none_when_not_exists() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let skill = Skills::get("nonexistent").expect("Should get skill");
+        assert!(skill.is_none());
+    }
+
+    // ============================================
+    // create() Tests
+    // ============================================
+
+    #[test]
+    fn test_create_skill_succeeds() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let input = CreateSkillInput {
+            id: "new-skill".to_string(),
+            name: "New Skill".to_string(),
+            description: "A brand new skill".to_string(),
+            category: SkillCategory::Custom,
+            content: "# New Skill Content".to_string(),
+        };
+
+        let skill = Skills::create(input).expect("Should create skill");
+        assert_eq!(skill.id, "new-skill");
+        assert_eq!(skill.name, "New Skill");
+        assert!(skill.is_custom);
+
+        // Verify file was created
+        let skill_file = env.skills_dir().join("new-skill").join("SKILL.md");
+        assert!(skill_file.exists());
+    }
+
+    #[test]
+    fn test_create_skill_fails_if_exists() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("existing-skill", "Existing", "Already exists", "# Content");
+
+        let input = CreateSkillInput {
+            id: "existing-skill".to_string(),
+            name: "Duplicate".to_string(),
+            description: "Should fail".to_string(),
+            category: SkillCategory::Custom,
+            content: "# Content".to_string(),
+        };
+
+        let result = Skills::create(input);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
+    }
+
+    // ============================================
+    // toggle() Tests
+    // ============================================
+
+    #[test]
+    fn test_toggle_disable_skill() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("toggleable", "Toggleable", "Can be toggled", "# Content");
+
+        // Initially enabled
+        let skill = Skills::get("toggleable").expect("Should get").unwrap();
+        assert!(skill.enabled);
+
+        // Disable it
+        Skills::toggle("toggleable", false).expect("Should toggle");
+
+        // Now disabled
+        let skill = Skills::get("toggleable").expect("Should get").unwrap();
+        assert!(!skill.enabled);
+    }
+
+    #[test]
+    fn test_toggle_enable_skill() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        env.create_skill("toggleable", "Toggleable", "Can be toggled", "# Content");
+
+        // Disable first
+        let config = SkillsConfig {
+            disabled: vec!["toggleable".to_string()],
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        let skill = Skills::get("toggleable").expect("Should get").unwrap();
+        assert!(!skill.enabled);
+
+        // Enable it
+        Skills::toggle("toggleable", true).expect("Should toggle");
+
+        let skill = Skills::get("toggleable").expect("Should get").unwrap();
+        assert!(skill.enabled);
+    }
+
+    #[test]
+    fn test_toggle_nonexistent_skill_fails() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let result = Skills::toggle("nonexistent", true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    // ============================================
+    // Default Sources Tests
+    // ============================================
+
+    #[test]
+    fn test_default_sources_structure() {
+        let sources = SkillSource::default_sources();
+
+        assert_eq!(sources.len(), 3);
+
+        // Anthropic Official
+        let anthropic = &sources[0];
+        assert_eq!(anthropic.id, "anthropic-official");
+        assert_eq!(anthropic.source_type, SkillSourceType::Official);
+        assert!(anthropic.fetchable);
+        assert_eq!(anthropic.schema, SkillSchema::Standard);
+
+        // Vercel
+        let vercel = &sources[1];
+        assert_eq!(vercel.id, "vercel-agent-skills");
+        assert_eq!(vercel.source_type, SkillSourceType::Marketplace);
+        assert!(vercel.fetchable);
+
+        // Awesome list (browse only)
+        let awesome = &sources[2];
+        assert_eq!(awesome.id, "awesome-claude-skills");
+        assert_eq!(awesome.source_type, SkillSourceType::Community);
+        assert!(!awesome.fetchable);
+    }
+
+    // ============================================
+    // Skill Modification Detection Tests
+    // ============================================
+
+    #[test]
+    fn test_skill_is_modified_detection() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let original_content = Skills::generate_skill_file("Test", "Desc", "# Original");
+        let original_hash = Skills::hash_content(&original_content);
+
+        // Create skill with source metadata
+        let skill_dir = env.skills_dir().join("modified-skill");
+        fs::create_dir_all(&skill_dir).unwrap();
+        fs::write(skill_dir.join("SKILL.md"), &original_content).unwrap();
+
+        let mut skill_meta = std::collections::HashMap::new();
+        skill_meta.insert("modified-skill".to_string(), SkillMeta {
+            source_id: Some("test-source".to_string()),
+            source_name: Some("Test Source".to_string()),
+            original_hash: Some(original_hash),
+        });
+        let config = SkillsConfig {
+            skill_meta,
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        // Not modified yet
+        let skill = Skills::get("modified-skill").unwrap().unwrap();
+        assert!(!skill.is_modified);
+
+        // Modify the file
+        let modified_content = Skills::generate_skill_file("Test", "Desc", "# MODIFIED!");
+        fs::write(skill_dir.join("SKILL.md"), modified_content).unwrap();
+
+        // Now it should be detected as modified
+        let skill = Skills::get("modified-skill").unwrap().unwrap();
+        assert!(skill.is_modified);
     }
 }

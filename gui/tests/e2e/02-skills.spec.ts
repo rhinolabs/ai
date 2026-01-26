@@ -305,3 +305,320 @@ test.describe('Skills - Delete Skill', () => {
     await expect(page.getByText('Keep Me')).toBeVisible();
   });
 });
+
+// ============================================
+// File Tree View Tests
+// ============================================
+test.describe('Skills - File Tree View', () => {
+  test.beforeEach(async ({ page }) => {
+    const mockContent = fs.readFileSync(path.resolve(__dirname, 'mocks/tauri-mock.js'), 'utf-8');
+    await page.addInitScript(mockContent);
+    await page.goto('/skills');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('should show View button for each skill', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await expect(skillRow.getByRole('button', { name: /view/i })).toBeVisible();
+  });
+
+  test('should display file tree when viewing a skill', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /view/i }).click();
+
+    // Should show file sidebar with Files heading
+    await expect(page.getByText('Files')).toBeVisible();
+
+    // Should show SKILL.md file
+    await expect(page.getByText('SKILL.md')).toBeVisible();
+  });
+
+  test('should display folder in file tree', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /view/i }).click();
+
+    // Should show examples folder
+    await expect(page.getByText('examples')).toBeVisible();
+  });
+
+  test('should expand folder when clicked', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /view/i }).click();
+
+    // Click on examples folder
+    await page.getByText('examples').click();
+
+    // Should show files inside folder
+    await expect(page.getByText('good.ts')).toBeVisible();
+    await expect(page.getByText('bad.ts')).toBeVisible();
+  });
+
+  test('should display file content with syntax highlighting when selected', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /view/i }).click();
+
+    // SKILL.md should be auto-selected
+    // Should show content in code viewer
+    const codeViewer = page.locator('pre').first();
+    await expect(codeViewer).toBeVisible();
+  });
+
+  test('should show Back button in detail view', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /view/i }).click();
+
+    await expect(page.getByRole('button', { name: /back/i })).toBeVisible();
+  });
+
+  test('should return to skill list when Back is clicked', async ({ page }) => {
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /view/i }).click();
+
+    await page.getByRole('button', { name: /back/i }).click();
+
+    // Should be back at the list
+    await expect(page.getByRole('heading', { name: /skills/i })).toBeVisible();
+    await expect(page.getByText('rhinolabs-standards')).toBeVisible();
+  });
+});
+
+// ============================================
+// Open in IDE Tests
+// ============================================
+test.describe('Skills - Open in IDE', () => {
+  test.beforeEach(async ({ page }) => {
+    const mockContent = fs.readFileSync(path.resolve(__dirname, 'mocks/tauri-mock.js'), 'utf-8');
+    await page.addInitScript(mockContent);
+    await page.goto('/skills');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('should open skill in IDE when Edit is clicked', async ({ page }) => {
+    const logs: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.text().includes('TauriMock')) {
+        logs.push(msg.text());
+      }
+    });
+
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /edit/i }).click();
+
+    // Should show success toast
+    await expect(page.getByText(/opened in/i)).toBeVisible();
+
+    // Verify mock was called
+    expect(logs.some((log) => log.includes('open_skill_in_ide'))).toBe(true);
+  });
+
+  test('should show error when no IDE is available for skill edit', async ({ page }) => {
+    await page.addInitScript(() => {
+      const originalInvoke = (window as any).__TAURI_INTERNALS__.invoke;
+      (window as any).__TAURI_INTERNALS__.invoke = async (cmd: string, args?: unknown) => {
+        if (cmd === 'list_available_ides') {
+          return [
+            { id: 'vscode', name: 'VS Code', command: 'code', available: false },
+          ];
+        }
+        return originalInvoke(cmd, args);
+      };
+    });
+
+    await page.reload();
+    await page.waitForLoadState('networkidle');
+
+    const skillRow = page.locator('[data-testid="skill-row-react-patterns"]');
+    await skillRow.getByRole('button', { name: /edit/i }).click();
+
+    await expect(page.getByText(/no ide available/i)).toBeVisible();
+  });
+});
+
+// ============================================
+// Skill Sources Tab Tests
+// ============================================
+test.describe('Skills - Sources Tab', () => {
+  test.beforeEach(async ({ page }) => {
+    const mockContent = fs.readFileSync(path.resolve(__dirname, 'mocks/tauri-mock.js'), 'utf-8');
+    await page.addInitScript(mockContent);
+    await page.goto('/skills');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('should display Sources tab', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /sources/i })).toBeVisible();
+  });
+
+  test('should switch to Sources tab', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+
+    // Should show Add Source button
+    await expect(page.getByRole('button', { name: /add source/i })).toBeVisible();
+  });
+
+  test('should list existing sources', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+
+    // Should show the mock sources
+    await expect(page.getByText('Anthropic Official')).toBeVisible();
+    await expect(page.getByText('Community Skills')).toBeVisible();
+  });
+
+  test('should show fetchable badge for auto-fetch sources', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+
+    await expect(page.getByText(/auto-fetch/i)).toBeVisible();
+  });
+
+  test('should show browse-only badge for non-fetchable sources', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+
+    await expect(page.getByText(/browse only/i)).toBeVisible();
+  });
+
+  test('should open add source form', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+    await page.getByRole('button', { name: /add source/i }).click();
+
+    // Should show form fields
+    await expect(page.getByLabel(/^id$/i)).toBeVisible();
+    await expect(page.getByLabel(/name/i)).toBeVisible();
+    await expect(page.getByLabel(/url/i)).toBeVisible();
+  });
+
+  test('should add a new source', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+    await page.getByRole('button', { name: /add source/i }).click();
+
+    await page.getByLabel(/^id$/i).fill('my-source');
+    await page.getByLabel(/name/i).fill('My Custom Source');
+    await page.getByLabel(/url/i).fill('https://github.com/test/skills');
+    await page.getByLabel(/description/i).fill('A test source');
+
+    await page.getByRole('button', { name: /^add$/i }).click();
+
+    // Should show success toast
+    await expect(page.getByText(/source added/i)).toBeVisible();
+  });
+
+  test('should toggle source enabled state', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+
+    const sourceItem = page.locator('.list-item').first();
+    const toggle = sourceItem.getByRole('switch');
+
+    await expect(toggle).toBeChecked();
+    await toggle.click();
+    await expect(toggle).not.toBeChecked();
+  });
+
+  test('should remove source', async ({ page }) => {
+    await page.getByRole('button', { name: /sources/i }).click();
+
+    // Community Skills source can be removed
+    const communityItem = page.locator('.list-item').filter({ hasText: 'Community Skills' });
+    await communityItem.getByRole('button', { name: /remove/i }).click();
+
+    // Confirm dialog
+    await page.getByRole('button', { name: /confirm/i }).click();
+
+    // Should show success
+    await expect(page.getByText(/source removed/i)).toBeVisible();
+  });
+});
+
+// ============================================
+// Browse Remote Skills Tab Tests
+// ============================================
+test.describe('Skills - Browse Tab', () => {
+  test.beforeEach(async ({ page }) => {
+    const mockContent = fs.readFileSync(path.resolve(__dirname, 'mocks/tauri-mock.js'), 'utf-8');
+    await page.addInitScript(mockContent);
+    await page.goto('/skills');
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('should display Browse tab', async ({ page }) => {
+    await expect(page.getByRole('button', { name: /browse/i })).toBeVisible();
+  });
+
+  test('should switch to Browse tab', async ({ page }) => {
+    await page.getByRole('button', { name: /browse/i }).click();
+
+    // Should show source selector
+    await expect(page.getByRole('combobox')).toBeVisible();
+  });
+
+  test('should load remote skills when source is selected', async ({ page }) => {
+    await page.getByRole('button', { name: /browse/i }).click();
+
+    // Select fetchable source
+    await page.getByRole('combobox').selectOption('anthropic-official');
+
+    // Should show remote skills
+    await expect(page.getByText('Remote Skill 1')).toBeVisible();
+    await expect(page.getByText('Remote Skill 2')).toBeVisible();
+  });
+
+  test('should show "In Plugin" badge for installed skills', async ({ page }) => {
+    await page.getByRole('button', { name: /browse/i }).click();
+    await page.getByRole('combobox').selectOption('anthropic-official');
+
+    // Remote Skill 2 is marked as installed in mock
+    await expect(page.getByText(/in plugin/i)).toBeVisible();
+  });
+
+  test('should show Preview and Add buttons for non-installed skills', async ({ page }) => {
+    await page.getByRole('button', { name: /browse/i }).click();
+    await page.getByRole('combobox').selectOption('anthropic-official');
+
+    const remoteSkill = page.locator('.list-item').filter({ hasText: 'Remote Skill 1' });
+    await expect(remoteSkill.getByRole('button', { name: /preview/i })).toBeVisible();
+    await expect(remoteSkill.getByRole('button', { name: /add/i })).toBeVisible();
+  });
+
+  test('should preview remote skill files', async ({ page }) => {
+    await page.getByRole('button', { name: /browse/i }).click();
+    await page.getByRole('combobox').selectOption('anthropic-official');
+
+    const remoteSkill = page.locator('.list-item').filter({ hasText: 'Remote Skill 1' });
+    await remoteSkill.getByRole('button', { name: /preview/i }).click();
+
+    // Should show file tree
+    await expect(page.getByText('SKILL.md')).toBeVisible();
+
+    // Should show content
+    await expect(page.getByText(/Remote Skill Content/i)).toBeVisible();
+  });
+
+  test('should add remote skill to plugin', async ({ page }) => {
+    const logs: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.text().includes('TauriMock')) {
+        logs.push(msg.text());
+      }
+    });
+
+    await page.getByRole('button', { name: /browse/i }).click();
+    await page.getByRole('combobox').selectOption('anthropic-official');
+
+    const remoteSkill = page.locator('.list-item').filter({ hasText: 'Remote Skill 1' });
+    await remoteSkill.getByRole('button', { name: /add/i }).click();
+
+    // Should show success
+    await expect(page.getByText(/added.*plugin/i)).toBeVisible();
+
+    // Verify mock was called
+    expect(logs.some((log) => log.includes('install_skill_from_remote'))).toBe(true);
+  });
+
+  test('should show browse-only message for non-fetchable sources', async ({ page }) => {
+    await page.getByRole('button', { name: /browse/i }).click();
+
+    // Select non-fetchable source
+    await page.getByRole('combobox').selectOption('community-skills');
+
+    // Should show browse-only message
+    await expect(page.getByText(/browse only/i)).toBeVisible();
+  });
+});

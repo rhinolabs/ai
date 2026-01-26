@@ -6,3 +6,4 @@ pub mod status;
 pub mod doctor;
 pub mod version;
 pub mod interactive;
+pub mod profile;
