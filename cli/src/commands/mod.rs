@@ -8,3 +8,4 @@ pub mod version;
 pub mod interactive;
 pub mod profile;
 pub mod deploy;
+pub mod auto_sync;

@@ -137,6 +137,22 @@ enum ProfileAction {
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
+    // Determine if auto-sync should run for this command
+    let should_auto_sync = matches!(
+        &cli.command,
+        Some(Commands::Profile { .. })
+            | Some(Commands::Status)
+            | Some(Commands::Doctor)
+            | Some(Commands::SyncMcp { .. })
+            | None // Interactive mode
+    );
+
+    // Run auto-sync for applicable commands
+    if should_auto_sync {
+        // Auto-sync runs silently if not needed, shows UI if syncing
+        let _ = auto_sync::run_auto_sync().await;
+    }
+
     match cli.command {
         Some(Commands::Install { local, dry_run }) => {
             install::run(local, dry_run).await?;
@@ -185,6 +201,7 @@ async fn main() -> anyhow::Result<()> {
             deploy::export(output)?;
         }
         Some(Commands::Sync) => {
+            // Manual sync - always runs regardless of session marker
             deploy::sync().await?;
         }
         None => {
