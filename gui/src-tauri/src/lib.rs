@@ -126,6 +126,10 @@ pub fn run() {
             install_profile,
             update_installed_profile,
             uninstall_profile,
+            // Deploy & Sync
+            export_config,
+            deploy_config,
+            sync_config,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

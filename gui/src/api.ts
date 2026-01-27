@@ -422,4 +422,17 @@ export const api = {
   uninstallProfile(targetPath: string): Promise<void> {
     return invoke('uninstall_profile', { targetPath });
   },
+
+  // Deploy & Sync
+  exportConfig(outputPath: string): Promise<[string, ConfigManifest]> {
+    return invoke('export_config', { outputPath });
+  },
+
+  deployConfig(version: string, changelog: string): Promise<DeployResult> {
+    return invoke('deploy_config', { version, changelog });
+  },
+
+  syncConfig(): Promise<SyncResult> {
+    return invoke('sync_config');
+  },
 };

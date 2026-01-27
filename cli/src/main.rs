@@ -69,6 +69,27 @@ enum Commands {
         #[command(subcommand)]
         action: ProfileAction,
     },
+
+    /// Deploy configuration to GitHub for team sync
+    Deploy {
+        /// Version for this deployment (e.g., 1.0.0)
+        #[arg(short, long)]
+        version: String,
+
+        /// Changelog or deployment message
+        #[arg(short, long)]
+        message: Option<String>,
+    },
+
+    /// Export configuration to a local zip file
+    Export {
+        /// Output directory for the zip file
+        #[arg(short, long)]
+        output: Option<String>,
+    },
+
+    /// Sync configuration from GitHub (pull latest deployed config)
+    Sync,
 }
 
 #[derive(Subcommand)]
@@ -156,6 +177,15 @@ async fn main() -> anyhow::Result<()> {
                     profile::uninstall(&path)?;
                 }
             }
+        }
+        Some(Commands::Deploy { version, message }) => {
+            deploy::deploy(&version, message).await?;
+        }
+        Some(Commands::Export { output }) => {
+            deploy::export(output)?;
+        }
+        Some(Commands::Sync) => {
+            deploy::sync().await?;
         }
         None => {
             // Interactive mode

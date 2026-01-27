@@ -8,6 +8,7 @@ use rhinolabs_core::{
     McpConfigManager, McpConfig, McpServer, McpSettings,
     Project, ProjectConfig, ProjectStatus,
     Profiles, Profile, CreateProfileInput, UpdateProfileInput, ProfileInstallResult,
+    Deploy, ConfigManifest, DeployResult, SyncResult,
 };
 use rhinolabs_core::diagnostics::DiagnosticReport;
 use serde::{Deserialize, Serialize};
@@ -741,4 +742,29 @@ pub fn update_installed_profile(profile_id: String, target_path: Option<String>)
 #[tauri::command]
 pub fn uninstall_profile(target_path: String) -> Result<(), String> {
     Profiles::uninstall(std::path::Path::new(&target_path)).map_err(|e| e.to_string())
+}
+
+// ============================================
+// Deploy Commands
+// ============================================
+
+#[tauri::command]
+pub fn export_config(output_path: String) -> Result<(String, ConfigManifest), String> {
+    let (path, manifest) = Deploy::export_config(std::path::Path::new(&output_path))
+        .map_err(|e| e.to_string())?;
+    Ok((path.display().to_string(), manifest))
+}
+
+#[tauri::command]
+pub async fn deploy_config(version: String, changelog: String) -> Result<DeployResult, String> {
+    Deploy::deploy(&version, &changelog)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_config() -> Result<SyncResult, String> {
+    Deploy::sync()
+        .await
+        .map_err(|e| e.to_string())
 }

@@ -215,6 +215,7 @@ Shared Rust library used by CLI and GUI.
 - `mcp.rs` - MCP server configuration
 - `paths.rs` - Cross-platform path resolution
 - `project.rs` - GitHub release management
+- `deploy.rs` - Configuration export, deploy & sync
 
 ### Building
 
@@ -241,22 +242,111 @@ cd gui && pnpm test:e2e
 
 ---
 
-## Distribution
+## Deploy & Sync (Team Distribution)
 
-### For Agency Developers
+The deploy/sync system allows the lead developer to publish configurations that team members can pull.
 
-1. Clone the repo
-2. Run install script: `./rhinolabs-claude/scripts/install.sh`
-3. CLI installs automatically, plugin copies to Claude Code
-4. Use CLI to install profiles to projects
+### Deploy Flow (Lead Developer)
 
-### Publishing Updates
+```
+Lead Developer (GUI/CLI)
+         │
+         ▼
+┌─────────────────────────────────┐
+│  rhinolabs deploy --version X   │
+│  or GUI → Deploy button         │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│  1. Export current config:      │
+│     - profiles.json             │
+│     - skills/                   │
+│     - CLAUDE.md                 │
+│     - settings.json             │
+│     - output-styles/            │
+│     - .mcp.json                 │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│  2. Create GitHub Release       │
+│     tag: config-vX.X.X          │
+│     asset: rhinolabs-config.zip │
+└─────────────────────────────────┘
+```
 
-1. Update version in `plugin.json`
-2. Create GitHub release with assets
-3. Developers pull and re-run install script
+### Sync Flow (Team Developers)
+
+```
+Team Developer (CLI)
+         │
+         ▼
+┌─────────────────────────────────┐
+│  rhinolabs sync                 │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│  1. Fetch latest config release │
+│     from GitHub (config-v*)     │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│  2. Download & extract:         │
+│     - profiles → ~/.config/     │
+│     - skills → plugin/skills/   │
+│     - settings → plugin/        │
+│     - etc.                      │
+└─────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────┐
+│  3. Ready! Use profiles:        │
+│  rhinolabs profile install ...  │
+└─────────────────────────────────┘
+```
+
+### CLI Commands
+
+```bash
+# Lead: Deploy current configuration
+rhinolabs deploy --version 1.0.0 --message "Initial config"
+
+# Lead: Export to local file (without publishing)
+rhinolabs export --output ./
+
+# Team: Sync latest configuration
+rhinolabs sync
+```
+
+### Requirements
+
+1. **GitHub Repository**: Configure in GUI → Project Settings
+2. **GITHUB_TOKEN**: Environment variable with repo write access (for deploy)
+3. **Config Release**: At least one deploy must exist (for sync)
 
 ---
 
-**Last Updated**: 2026-01-27
-**Version**: 2.0.0
+## Distribution
+
+### Initial Setup (New Developer)
+
+1. Clone the repo
+2. Run install script: `./rhinolabs-claude/scripts/install.sh`
+3. Configure GitHub token: `export GITHUB_TOKEN=xxx`
+4. Sync configuration: `rhinolabs sync`
+5. Install Main-Profile: `rhinolabs profile install --profile main`
+6. Install project profiles as needed
+
+### Publishing Configuration Updates
+
+1. Make changes in GUI (profiles, skills, settings, etc.)
+2. Deploy: `rhinolabs deploy --version X.X.X`
+3. Team members run: `rhinolabs sync`
+
+---
+
+**Last Updated**: 2026-01-28
+**Version**: 2.1.0

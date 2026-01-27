@@ -301,3 +301,33 @@ export interface SkillInstallError {
   skillId: string;
   error: string;
 }
+
+// ============================================
+// Deploy & Sync
+// ============================================
+
+export interface ConfigManifest {
+  version: string;
+  createdAt: string;
+  profilesCount: number;
+  skillsCount: number;
+  hasInstructions: boolean;
+  hasSettings: boolean;
+  outputStylesCount: number;
+}
+
+export interface DeployResult {
+  version: string;
+  releaseUrl: string;
+  assetUrl: string;
+  manifest: ConfigManifest;
+}
+
+export interface SyncResult {
+  version: string;
+  profilesInstalled: number;
+  skillsInstalled: number;
+  instructionsInstalled: boolean;
+  settingsInstalled: boolean;
+  outputStylesInstalled: number;
+}

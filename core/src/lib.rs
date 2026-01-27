@@ -14,6 +14,7 @@ pub mod instructions;
 pub mod mcp_config;
 pub mod project;
 pub mod profiles;
+pub mod deploy;
 
 #[cfg(test)]
 mod test_utils;
@@ -33,3 +34,4 @@ pub use instructions::{InstructionsManager, Instructions};
 pub use mcp_config::{McpConfigManager, McpConfig, McpServer, McpSettings};
 pub use project::{Project, ProjectConfig, ProjectStatus, GitHubConfig, ReleaseAsset};
 pub use profiles::{Profiles, Profile, ProfileType, CreateProfileInput, UpdateProfileInput, ProfileInstallResult, SkillInstallError};
+pub use deploy::{Deploy, ConfigManifest, DeployResult, SyncResult};

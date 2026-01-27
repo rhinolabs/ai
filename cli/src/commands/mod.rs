@@ -7,3 +7,4 @@ pub mod doctor;
 pub mod version;
 pub mod interactive;
 pub mod profile;
+pub mod deploy;
