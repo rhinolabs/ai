@@ -246,15 +246,18 @@ cd gui && pnpm test:e2e
 
 The deploy/sync system allows the lead developer to publish configurations that team members can pull.
 
-### Deploy Flow (Lead Developer)
+### Deploy Flow (Lead Developer - GUI ONLY)
+
+⚠️ **IMPORTANT**: Deploy is ONLY available through the GUI, NOT the CLI.
+This ensures only authorized leads can publish configuration changes.
 
 ```
-Lead Developer (GUI/CLI)
+Lead Developer (GUI ONLY)
          │
          ▼
 ┌─────────────────────────────────┐
-│  rhinolabs deploy --version X   │
-│  or GUI → Deploy button         │
+│  GUI → Project → Deploy button  │
+│  (Requires GITHUB_TOKEN)        │
 └─────────────────────────────────┘
          │
          ▼
@@ -308,37 +311,43 @@ Team Developer (CLI)
 └─────────────────────────────────┘
 ```
 
-### CLI Commands
+### CLI Commands (Team Developers)
 
 ```bash
-# Lead: Deploy current configuration
-rhinolabs deploy --version 1.0.0 --message "Initial config"
-
-# Lead: Export to local file (without publishing)
-rhinolabs export --output ./
-
-# Team: Sync latest configuration
+# Sync latest configuration (auto-runs on first command of session)
 rhinolabs sync
+
+# Profile management
+rhinolabs profile list
+rhinolabs profile show <id>
+rhinolabs profile install --profile main
+rhinolabs profile install --profile react-stack --path ./project
 ```
+
+### GUI Commands (Lead Developer Only)
+
+- **Project → Deploy**: Publish configuration to GitHub
+- **Project → Export**: Export configuration to local file
 
 ### Requirements
 
 1. **GitHub Repository**: Configure in GUI → Project Settings
-2. **GITHUB_TOKEN**: Environment variable with repo write access (for deploy)
-3. **Config Release**: At least one deploy must exist (for sync)
+2. **GITHUB_TOKEN**: Environment variable with repo write access (Lead only, for deploy)
+3. **Config Release**: At least one deploy must exist (for team sync)
 
 ---
 
 ## Distribution
 
-### Initial Setup (New Developer)
+### Initial Setup (New Team Developer)
 
 1. Clone the repo
 2. Run install script: `./rhinolabs-claude/scripts/install.sh`
-3. Configure GitHub token: `export GITHUB_TOKEN=xxx`
-4. Sync configuration: `rhinolabs sync`
-5. Install Main-Profile: `rhinolabs profile install --profile main`
-6. Install project profiles as needed
+3. Run any command (auto-sync triggers): `rhinolabs profile list`
+4. Accept Main-Profile installation when prompted
+5. Install project profiles as needed
+
+Note: Team developers do NOT need GITHUB_TOKEN (only for read operations)
 
 ### Publishing Configuration Updates
 
