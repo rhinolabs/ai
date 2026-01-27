@@ -386,31 +386,24 @@ export default function Profiles() {
               {/* Profile Selector */}
               <div>
                 <h3>Select Profile</h3>
-                <div style={SCROLLABLE_LIST_STYLE}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {profiles.map((profile) => (
-                    <div
+                    <button
                       key={profile.id}
-                      className={`list-item ${selectedProfileId === profile.id ? 'selected' : ''}`}
+                      className={`btn ${selectedProfileId === profile.id ? 'btn-primary' : 'btn-secondary'}`}
                       style={{
-                        padding: '12px',
-                        borderBottom: '1px solid var(--border)',
-                        cursor: 'pointer',
-                        background: selectedProfileId === profile.id ? 'rgba(139, 92, 246, 0.15)' : 'transparent',
-                        borderLeft: selectedProfileId === profile.id ? '3px solid #8b5cf6' : '3px solid transparent',
-                        transition: 'all 0.15s ease',
+                        textAlign: 'left',
+                        padding: '12px 16px',
                       }}
                       onClick={() => handleSelectProfile(profile.id)}
                     >
-                      <div style={{
-                        fontWeight: 600,
-                        color: selectedProfileId === profile.id ? '#a78bfa' : 'inherit',
-                      }}>
+                      <div style={{ fontWeight: 600 }}>
                         {profile.name}
                       </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                      <div style={{ fontSize: '12px', opacity: 0.8 }}>
                         {profile.skills.length} skills
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -419,16 +412,41 @@ export default function Profiles() {
               <div>
                 {selectedProfileId ? (
                   <>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                      <h3>Assign Skills to {profiles.find(p => p.id === selectedProfileId)?.name}</h3>
+                    {/* Selected Profile Header */}
+                    <div
+                      style={{
+                        background: 'var(--primary)',
+                        color: 'white',
+                        padding: '16px 20px',
+                        borderRadius: '8px',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '12px', opacity: 0.8, marginBottom: '4px' }}>
+                          EDITING PROFILE
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 700 }}>
+                          {profiles.find(p => p.id === selectedProfileId)?.name}
+                        </div>
+                      </div>
                       <button
-                        className="btn btn-primary"
+                        className="btn"
+                        style={{
+                          background: 'rgba(255,255,255,0.2)',
+                          color: 'white',
+                          border: '1px solid rgba(255,255,255,0.3)',
+                        }}
                         onClick={handleSaveAssignment}
                         disabled={savingAssignment}
                       >
                         {savingAssignment ? 'Saving...' : 'Save Assignment'}
                       </button>
                     </div>
+                    <h3 style={{ marginBottom: '12px' }}>Available Skills</h3>
                     <div style={SCROLLABLE_LIST_STYLE}>
                       {skills.map((skill) => (
                         <label

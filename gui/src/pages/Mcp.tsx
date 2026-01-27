@@ -215,10 +215,16 @@ export default function Mcp() {
       </div>
 
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>
+        <button
+          className={`btn ${showSync ? 'btn-secondary' : 'btn-primary'}`}
+          onClick={() => setCreating(true)}
+        >
           Add Server
         </button>
-        <button className="btn btn-secondary" onClick={() => setShowSync(!showSync)}>
+        <button
+          className={`btn ${showSync ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setShowSync(!showSync)}
+        >
           Sync from Source
         </button>
       </div>
