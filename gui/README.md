@@ -31,10 +31,10 @@ graph TB
 
 The GUI is designed for **lead developers** who need to:
 
-- Manage skills and profiles
+- Manage skills and profiles (with integrated instructions)
 - Configure MCP servers
 - **Deploy configuration to GitHub** (GUI-only feature)
-- Manage plugin settings and instructions
+- Manage plugin settings
 
 Team developers use the CLI for read-only operations (sync, profile install).
 
@@ -123,31 +123,48 @@ flowchart TB
 
 ### Profiles Management
 
+Profiles now have integrated instructions management - no separate Instructions page needed.
+
 ```mermaid
 graph TB
     subgraph "Profiles Page"
-        subgraph "All Profiles Tab"
-            CREATE[Create Profile]
-            EDIT[Edit Profile]
-            DELETE[Delete Profile]
-            TYPE[Set Type<br/>User/Project]
+        subgraph "List View"
+            LIST[Profile List]
+            CREATE_BTN[Create Button]
+            EDIT_BTN[Edit Button]
         end
 
-        subgraph "Assign Skills Tab"
-            SELECT[Select Profile]
-            CATEGORY[Filter by Category]
-            ASSIGN[Assign Skills]
-            PREVIEW[Preview Description]
+        subgraph "Edit/Create Mode"
+            HEADER[Header with Save/Close]
+
+            subgraph "Tabs"
+                BASIC[Basic Info Tab]
+                SKILLS[Skills Tab]
+                INSTR[Instructions Tab]
+            end
         end
     end
 
-    CREATE --> EDIT
-    SELECT --> CATEGORY
-    CATEGORY --> ASSIGN
+    CREATE_BTN --> HEADER
+    EDIT_BTN --> HEADER
+    HEADER --> BASIC
+    HEADER --> SKILLS
+    HEADER --> INSTR
 
-    style SELECT fill:#805ad5,stroke:#9f7aea,color:#fff
-    style ASSIGN fill:#38a169,stroke:#68d391,color:#fff
+    style HEADER fill:#805ad5,stroke:#9f7aea,color:#fff
+    style SKILLS fill:#38a169,stroke:#68d391,color:#fff
+    style INSTR fill:#3182ce,stroke:#63b3ed,color:#fff
 ```
+
+**Create/Edit Flow:**
+1. **Basic Info**: ID, name, description
+2. **Skills**: Assign skills with category filter (available during creation)
+3. **Instructions**: View/edit in IDE (edit mode only)
+
+**Key Features:**
+- Skills can be assigned during profile creation
+- Instructions template auto-generated with assigned skills in auto-invoke table
+- Main Profile instructions = global CLAUDE.md (single source of truth)
 
 ### MCP Servers
 
@@ -186,9 +203,11 @@ graph LR
     subgraph "Settings Page"
         AUTO[Auto-Update]
         STYLE[Output Style]
-        INSTRUCTIONS[CLAUDE.md Editor]
+        DIAG[Diagnostics]
     end
 ```
+
+Note: CLAUDE.md instructions are now managed via Profiles → Main Profile → Instructions tab.
 
 ### Project & Deploy
 
@@ -356,8 +375,15 @@ const profiles = await invoke<Profile[]>('list_profiles');
 // Get profile
 const profile = await invoke<Profile>('get_profile', { id: 'react-stack' });
 
-// Create profile
-await invoke('create_profile', { input: { ... } });
+// Create profile (with skills - generates instructions template with auto-invoke table)
+await invoke('create_profile', {
+  input: {
+    id: 'react-stack',
+    name: 'React Stack',
+    description: 'React 19 with TypeScript and Tailwind',
+    skills: ['react-19', 'typescript', 'tailwind-4']  // Skills assigned during creation
+  }
+});
 
 // Update profile
 await invoke('update_profile', { id: 'react-stack', input: { ... } });
@@ -365,7 +391,7 @@ await invoke('update_profile', { id: 'react-stack', input: { ... } });
 // Delete profile
 await invoke('delete_profile', { id: 'react-stack' });
 
-// Assign skills
+// Assign skills (for existing profiles)
 await invoke('assign_skills_to_profile', {
   profileId: 'react-stack',
   skillIds: ['react-19', 'typescript']
@@ -373,6 +399,10 @@ await invoke('assign_skills_to_profile', {
 
 // Get profile skills
 const skills = await invoke<Skill[]>('get_profile_skills', { profileId: 'react-stack' });
+
+// Profile Instructions
+const content = await invoke<string>('get_profile_instructions', { profileId: 'react-stack' });
+await invoke('open_profile_instructions_in_ide', { profileId: 'react-stack', ideCommand: 'code' });
 ```
 
 ### Skills
@@ -502,5 +532,5 @@ ls ~/.config/claude-code/plugins/rhinolabs-claude/skills/
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: 2026-01-28
+**Version**: 1.1.0
+**Last Updated**: 2026-01-29

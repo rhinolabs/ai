@@ -89,7 +89,7 @@ graph TB
 
 ### profiles.rs
 
-Profile management and installation.
+Profile management, instructions, and installation.
 
 ```mermaid
 flowchart LR
@@ -100,19 +100,28 @@ flowchart LR
         UPDATE --> DELETE[delete]
     end
 
+    subgraph "Instructions"
+        GET_INSTR[get_instructions]
+        UPDATE_INSTR[update_instructions]
+        OPEN_IDE[open_in_ide]
+    end
+
     subgraph "Installation"
         INSTALL[install]
         UPDATE_INST[update_installed]
         UNINSTALL[uninstall]
     end
 
-    DELETE --> INSTALL
+    DELETE --> GET_INSTR
+    GET_INSTR --> UPDATE_INSTR
+    UPDATE_INSTR --> OPEN_IDE
+    OPEN_IDE --> INSTALL
     INSTALL --> UPDATE_INST
     UPDATE_INST --> UNINSTALL
 ```
 
 ```rust
-use rhinolabs_core::{Profiles, ProfileType};
+use rhinolabs_core::{Profiles, ProfileType, CreateProfileInput};
 
 // List all profiles
 let profiles = Profiles::list()?;
@@ -120,13 +129,20 @@ let profiles = Profiles::list()?;
 // Get specific profile
 let profile = Profiles::get("react-stack")?;
 
-// Create profile
+// Create profile with skills (generates instructions template with auto-invoke table)
 let profile = Profiles::create(CreateProfileInput {
     id: "my-profile".to_string(),
     name: "My Profile".to_string(),
     description: "Custom profile".to_string(),
     profile_type: ProfileType::Project,
+    skills: vec!["react-19".to_string(), "typescript".to_string()],
+    ..Default::default()
 })?;
+
+// Profile Instructions
+let content = Profiles::get_instructions("react-stack")?;
+Profiles::update_instructions("react-stack", "# New Instructions\n...")?;
+let path = Profiles::get_instructions_path("react-stack")?;
 
 // Install profile to path
 let result = Profiles::install("react-stack", Some(Path::new("./project")))?;
@@ -137,6 +153,12 @@ let result = Profiles::update_installed("react-stack", Some(Path::new("./project
 // Uninstall profile
 Profiles::uninstall(Path::new("./project"))?;
 ```
+
+**Instructions Generation:**
+When creating a profile with skills, instructions are auto-generated with:
+- Project context and rules
+- Code standards template
+- Auto-invoke table populated with assigned skills
 
 ### skills.rs
 
@@ -417,6 +439,10 @@ classDiagram
         +String description
         +ProfileType profile_type
         +Vec~String~ skills
+        +Vec~AutoInvokeRule~ auto_invoke_rules
+        +Option~String~ instructions
+        +bool generate_copilot
+        +bool generate_agents
         +String created_at
         +String updated_at
     }
@@ -427,7 +453,14 @@ classDiagram
         Project
     }
 
+    class AutoInvokeRule {
+        +String skill_id
+        +String trigger
+        +String description
+    }
+
     Profile --> ProfileType
+    Profile --> AutoInvokeRule
 ```
 
 ```rust
@@ -437,6 +470,10 @@ pub struct Profile {
     pub description: String,
     pub profile_type: ProfileType,
     pub skills: Vec<String>,
+    pub auto_invoke_rules: Vec<AutoInvokeRule>,
+    pub instructions: Option<String>,
+    pub generate_copilot: bool,
+    pub generate_agents: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -444,6 +481,12 @@ pub struct Profile {
 pub enum ProfileType {
     User,      // Installs to ~/.claude/
     Project,   // Installs to project/.claude-plugin/
+}
+
+pub struct AutoInvokeRule {
+    pub skill_id: String,
+    pub trigger: String,      // "Editing .tsx/.jsx files"
+    pub description: String,  // "React 19 patterns and hooks"
 }
 ```
 
@@ -569,5 +612,5 @@ use rhinolabs_core::{Profiles, Skills, Deploy};
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: 2026-01-28
+**Version**: 1.1.0
+**Last Updated**: 2026-01-29

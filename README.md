@@ -73,13 +73,13 @@ sequenceDiagram
 
 ## Profiles System
 
-Profiles organize skills into reusable bundles that can be applied at different scopes:
+Profiles organize skills AND instructions into reusable bundles that can be applied at different scopes:
 
 ```mermaid
 graph TB
     subgraph "User Level (Global)"
         MAIN[Main-Profile<br/>~/.claude/]
-        MAIN_SKILLS[Agency Standards<br/>Security Rules<br/>Code Quality]
+        MAIN_CONTENT[CLAUDE.md Instructions<br/>Agency Standards<br/>Security Rules]
     end
 
     subgraph "Project Level (Local)"
@@ -87,24 +87,24 @@ graph TB
         PROJ2[rust-backend<br/>./apps/api/.claude-plugin/]
         PROJ3[ts-lib<br/>./packages/shared/.claude-plugin/]
 
-        SKILLS1[React 19<br/>TypeScript<br/>Tailwind]
-        SKILLS2[Rust Patterns<br/>Async/Await<br/>Error Handling]
-        SKILLS3[TypeScript<br/>Testing<br/>Documentation]
+        CONTENT1[Skills + Instructions<br/>React 19, TypeScript, Tailwind<br/>Auto-invoke Rules]
+        CONTENT2[Skills + Instructions<br/>Rust Patterns, Error Handling<br/>Auto-invoke Rules]
+        CONTENT3[Skills + Instructions<br/>TypeScript, Testing<br/>Auto-invoke Rules]
     end
 
-    MAIN --> MAIN_SKILLS
-    PROJ1 --> SKILLS1
-    PROJ2 --> SKILLS2
-    PROJ3 --> SKILLS3
+    MAIN --> MAIN_CONTENT
+    PROJ1 --> CONTENT1
+    PROJ2 --> CONTENT2
+    PROJ3 --> CONTENT3
 
     subgraph "Claude Code Runtime"
-        COMBINED[Combined Skills<br/>Main-Profile + Project Profile]
+        COMBINED[Combined Skills + Instructions<br/>Main-Profile + Project Profile]
     end
 
-    MAIN_SKILLS --> COMBINED
-    SKILLS1 --> COMBINED
-    SKILLS2 --> COMBINED
-    SKILLS3 --> COMBINED
+    MAIN_CONTENT --> COMBINED
+    CONTENT1 --> COMBINED
+    CONTENT2 --> COMBINED
+    CONTENT3 --> COMBINED
 
     style MAIN fill:#805ad5,stroke:#9f7aea,color:#fff
     style PROJ1 fill:#3182ce,stroke:#63b3ed,color:#fff
@@ -113,6 +113,13 @@ graph TB
     style COMBINED fill:#38a169,stroke:#68d391,color:#fff
 ```
 
+### Profile Components
+
+Each profile contains:
+- **Skills**: Reusable coding patterns and standards (SKILL.md files)
+- **Instructions**: Custom CLAUDE.md content with rules, code standards, and auto-invoke table
+- **Auto-invoke Rules**: Define when each skill should be automatically loaded
+
 ### User Profile (Main-Profile)
 
 | Aspect | Description |
@@ -120,6 +127,7 @@ graph TB
 | **Scope** | Applies to ALL projects |
 | **Location** | `~/.claude/` |
 | **Purpose** | Agency-wide standards, security rules |
+| **Instructions** | Shared CLAUDE.md (editable via GUI) |
 | **Installation** | Auto-prompted on first sync |
 
 ### Project Profiles
@@ -128,8 +136,28 @@ graph TB
 |--------|-------------|
 | **Scope** | Applies only to specific project |
 | **Location** | `<project>/.claude-plugin/` |
-| **Purpose** | Tech-stack specific skills |
+| **Purpose** | Tech-stack specific skills + instructions |
+| **Instructions** | Generated with auto-invoke table based on assigned skills |
 | **Installation** | Manual via `rhinolabs-ai profile install` |
+
+### Profile Creation Flow
+
+```mermaid
+flowchart LR
+    A[Create Profile] --> B[Fill Basic Info]
+    B --> C[Assign Skills]
+    C --> D[Create]
+    D --> E[Instructions Generated<br/>with Auto-invoke Table]
+    E --> F[Edit Instructions<br/>in IDE]
+
+    style D fill:#38a169,stroke:#68d391,color:#fff
+    style E fill:#805ad5,stroke:#9f7aea,color:#fff
+```
+
+When creating a profile with skills, the instructions template is automatically generated with:
+- Project context and rules
+- Code standards
+- **Skills Auto-invoke Table** populated with assigned skills
 
 ## Quick Start
 
@@ -364,5 +392,5 @@ Proprietary - Rhinolabs Internal Use Only
 
 ---
 
-**Version**: 2.1.0
-**Last Updated**: 2026-01-28
+**Version**: 2.2.0
+**Last Updated**: 2026-01-29
