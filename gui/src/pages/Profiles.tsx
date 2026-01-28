@@ -262,6 +262,37 @@ export default function Profiles() {
           </p>
         </div>
 
+        {/* Action Bar - Always visible */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '12px 16px',
+          background: 'var(--bg-secondary)',
+          borderRadius: '8px',
+          marginBottom: '16px',
+        }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {creating ? (
+              <button className="btn btn-primary" onClick={handleCreate}>
+                Create Profile
+              </button>
+            ) : (
+              <button className="btn btn-primary" onClick={handleUpdate}>
+                Save Changes
+              </button>
+            )}
+            <button className="btn btn-secondary" onClick={closeEdit}>
+              {creating ? 'Cancel' : 'Close'}
+            </button>
+          </div>
+          {editing && (
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              {assignedSkills.size} skills assigned
+            </div>
+          )}
+        </div>
+
         {/* Section Tabs (only in edit mode) */}
         {editing && (
           <div className="tabs" style={{ marginBottom: '24px' }}>
@@ -329,20 +360,6 @@ export default function Profiles() {
                 />
               </div>
             )}
-            <div className="form-actions" style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              {creating ? (
-                <button className="btn btn-primary" onClick={handleCreate}>
-                  Create Profile
-                </button>
-              ) : (
-                <button className="btn btn-primary" onClick={handleUpdate}>
-                  Save Changes
-                </button>
-              )}
-              <button className="btn btn-secondary" onClick={closeEdit}>
-                {creating ? 'Cancel' : 'Close'}
-              </button>
-            </div>
           </div>
         )}
 
