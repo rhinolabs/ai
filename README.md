@@ -12,42 +12,124 @@ Rhinolabs AI provides a complete solution for standardizing Claude Code across d
 - **Profiles**: Organize skills into reusable bundles (user-level and project-level)
 - **Deploy/Sync**: Distribute configurations across your team via GitHub releases
 
-## Architecture
+## System Architecture
 
-```
-rhinolabs-ai/
-├── cli/                    # Command-line interface (rhinolabs-ai, rlai)
-├── core/                   # Shared Rust library
-├── gui/                    # Desktop application (Tauri + React)
-├── rhinolabs-claude/       # Base plugin with skills
-└── docs/                   # Documentation
+```mermaid
+graph TB
+    subgraph "Rhinolabs AI Ecosystem"
+        subgraph "Shared Library"
+            CORE[rhinolabs-core<br/>Rust Library]
+        end
+
+        subgraph "Applications"
+            GUI[GUI Desktop App<br/>Tauri + React]
+            CLI[CLI Tool<br/>rhinolabs-ai / rlai]
+        end
+
+        subgraph "Plugin"
+            PLUGIN[rhinolabs-claude<br/>Claude Code Plugin]
+            SKILLS[Skills Library]
+            MCP[MCP Servers Config]
+        end
+    end
+
+    GUI --> CORE
+    CLI --> CORE
+    CORE --> PLUGIN
+    PLUGIN --> SKILLS
+    PLUGIN --> MCP
+
+    style CORE fill:#4a5568,stroke:#718096,color:#fff
+    style GUI fill:#805ad5,stroke:#9f7aea,color:#fff
+    style CLI fill:#3182ce,stroke:#63b3ed,color:#fff
+    style PLUGIN fill:#38a169,stroke:#68d391,color:#fff
 ```
 
-### How It Works
+## Deploy & Sync Flow
 
+The system separates concerns between lead developers (configuration management) and team developers (consumption):
+
+```mermaid
+sequenceDiagram
+    participant Lead as Lead Developer
+    participant GUI as GUI App
+    participant GH as GitHub Releases
+    participant CLI as CLI Tool
+    participant Dev as Team Developer
+
+    Note over Lead,GUI: Configuration Management (Write)
+    Lead->>GUI: Create/Edit Profiles
+    Lead->>GUI: Assign Skills
+    Lead->>GUI: Click Deploy
+    GUI->>GH: Upload rhinolabs-config.zip
+
+    Note over CLI,Dev: Configuration Consumption (Read-Only)
+    Dev->>CLI: rhinolabs-ai sync
+    CLI->>GH: Download latest config
+    CLI->>Dev: Update local configuration
+    Dev->>CLI: rhinolabs-ai profile install X
+    CLI->>Dev: Install profile to project
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           LEAD DEVELOPER (GUI)                              │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  1. Create Profiles    2. Assign Skills    3. Deploy to GitHub      │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-                        ┌───────────────────────┐
-                        │   GitHub Release      │
-                        │   rhinolabs-config.zip│
-                        └───────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           TEAM DEVELOPERS (CLI)                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │  rhinolabs-ai sync              # Auto-runs on first command        │   │
-│  │  rhinolabs-ai profile install X # Install profile to project        │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
+
+## Profiles System
+
+Profiles organize skills into reusable bundles that can be applied at different scopes:
+
+```mermaid
+graph TB
+    subgraph "User Level (Global)"
+        MAIN[Main-Profile<br/>~/.claude/]
+        MAIN_SKILLS[Agency Standards<br/>Security Rules<br/>Code Quality]
+    end
+
+    subgraph "Project Level (Local)"
+        PROJ1[react-stack<br/>./apps/web/.claude-plugin/]
+        PROJ2[rust-backend<br/>./apps/api/.claude-plugin/]
+        PROJ3[ts-lib<br/>./packages/shared/.claude-plugin/]
+
+        SKILLS1[React 19<br/>TypeScript<br/>Tailwind]
+        SKILLS2[Rust Patterns<br/>Async/Await<br/>Error Handling]
+        SKILLS3[TypeScript<br/>Testing<br/>Documentation]
+    end
+
+    MAIN --> MAIN_SKILLS
+    PROJ1 --> SKILLS1
+    PROJ2 --> SKILLS2
+    PROJ3 --> SKILLS3
+
+    subgraph "Claude Code Runtime"
+        COMBINED[Combined Skills<br/>Main-Profile + Project Profile]
+    end
+
+    MAIN_SKILLS --> COMBINED
+    SKILLS1 --> COMBINED
+    SKILLS2 --> COMBINED
+    SKILLS3 --> COMBINED
+
+    style MAIN fill:#805ad5,stroke:#9f7aea,color:#fff
+    style PROJ1 fill:#3182ce,stroke:#63b3ed,color:#fff
+    style PROJ2 fill:#3182ce,stroke:#63b3ed,color:#fff
+    style PROJ3 fill:#3182ce,stroke:#63b3ed,color:#fff
+    style COMBINED fill:#38a169,stroke:#68d391,color:#fff
 ```
+
+### User Profile (Main-Profile)
+
+| Aspect | Description |
+|--------|-------------|
+| **Scope** | Applies to ALL projects |
+| **Location** | `~/.claude/` |
+| **Purpose** | Agency-wide standards, security rules |
+| **Installation** | Auto-prompted on first sync |
+
+### Project Profiles
+
+| Aspect | Description |
+|--------|-------------|
+| **Scope** | Applies only to specific project |
+| **Location** | `<project>/.claude-plugin/` |
+| **Purpose** | Tech-stack specific skills |
+| **Installation** | Manual via `rhinolabs-ai profile install` |
 
 ## Quick Start
 
@@ -71,10 +153,21 @@ rhinolabs-ai profile install react-stack
 
 ### For Lead Developers
 
+```mermaid
+flowchart LR
+    A[Install GUI] --> B[Configure GitHub]
+    B --> C[Create Profiles]
+    C --> D[Assign Skills]
+    D --> E[Deploy]
+    E --> F[Team syncs via CLI]
+
+    style E fill:#38a169,stroke:#68d391,color:#fff
+```
+
 1. Download and install the GUI from [Releases](https://github.com/rhinolabs/rhinolabs-ai/releases)
-2. Configure GitHub repository in Project Settings
+2. Configure GitHub repository in **Project Settings**
 3. Create profiles and assign skills
-4. Deploy configuration for your team
+4. Click **Deploy** to publish configuration
 
 ## CLI Commands
 
@@ -103,25 +196,37 @@ rhinolabs-ai doctor                  # Run diagnostics
 rhinolabs-ai sync-mcp                # Sync MCP servers from source
 ```
 
-## Profiles System
+## Monorepo Example
 
-Profiles organize skills into reusable bundles:
+```mermaid
+graph TB
+    subgraph "~/monorepo"
+        ROOT[Project Root]
 
-### User Profile (Main-Profile)
+        subgraph "apps/"
+            WEB[web/<br/>React Frontend]
+            API[api/<br/>Rust Backend]
+        end
 
-- Installs to `~/.claude/`
-- Applies to **ALL** projects
-- Contains agency-wide standards
-- Auto-installed on first sync (with confirmation)
+        subgraph "packages/"
+            SHARED[shared/<br/>TypeScript Library]
+        end
+    end
 
-### Project Profiles
+    subgraph "Installed Profiles"
+        P1[react-stack]
+        P2[rust-backend]
+        P3[ts-lib]
+    end
 
-- Installs to `<project>/.claude-plugin/`
-- Applies only to that project
-- Tech-stack specific skills (React, Django, etc.)
-- Installed as Claude Code plugins
+    WEB -.->|rhinolabs-ai profile install| P1
+    API -.->|rhinolabs-ai profile install| P2
+    SHARED -.->|rhinolabs-ai profile install| P3
 
-### Example: Monorepo Setup
+    style P1 fill:#3182ce,stroke:#63b3ed,color:#fff
+    style P2 fill:#dd6b20,stroke:#ed8936,color:#fff
+    style P3 fill:#805ad5,stroke:#9f7aea,color:#fff
+```
 
 ```bash
 cd ~/monorepo
@@ -137,6 +242,25 @@ rhinolabs-ai profile install ts-lib -P ./packages/shared
 
 ## Installation Paths
 
+```mermaid
+graph LR
+    subgraph "User Configuration"
+        A1[CLI Config<br/>~/.config/rhinolabs-ai/]
+        A2[User Skills<br/>~/.claude/skills/]
+    end
+
+    subgraph "Project Configuration"
+        B1[Project Skills<br/>./project/.claude/skills/]
+        B2[Plugin Manifest<br/>./project/.claude-plugin/]
+    end
+
+    subgraph "Plugin Installation"
+        C1[macOS<br/>~/Library/Application Support/<br/>Claude Code/plugins/]
+        C2[Linux<br/>~/.config/claude-code/plugins/]
+        C3[Windows<br/>%APPDATA%/Claude Code/plugins/]
+    end
+```
+
 | Component | Path |
 |-----------|------|
 | CLI Config | `~/.config/rhinolabs-ai/` |
@@ -146,30 +270,50 @@ rhinolabs-ai profile install ts-lib -P ./packages/shared
 | Plugin (Linux) | `~/.config/claude-code/plugins/rhinolabs-claude/` |
 | Plugin (Windows) | `%APPDATA%\Claude Code\plugins\rhinolabs-claude\` |
 
-## Deploy & Sync (Team Distribution)
+## Security Model
 
-### Deploy (Lead Developer - GUI Only)
+```mermaid
+graph TB
+    subgraph "Lead Developer"
+        GUI_ACCESS[GUI App]
+        DEPLOY[Deploy to GitHub<br/>REQUIRES GITHUB_TOKEN]
+    end
 
-1. Open GUI
-2. Configure GitHub repository (Settings > Project)
-3. Create/modify profiles and assign skills
-4. Click **Deploy** to publish configuration
+    subgraph "Team Developer"
+        CLI_ACCESS[CLI Tool]
+        SYNC[Sync from GitHub<br/>Read-Only, No Token]
+        INSTALL[Install Profiles<br/>Local Only]
+    end
 
-**Requirements:**
-- `GITHUB_TOKEN` environment variable with repo write access
-- Configured GitHub repository
+    subgraph "GitHub"
+        RELEASES[Releases<br/>rhinolabs-config.zip]
+    end
 
-### Sync (Team Developers - CLI)
+    GUI_ACCESS --> DEPLOY
+    DEPLOY -->|Write| RELEASES
+    CLI_ACCESS --> SYNC
+    CLI_ACCESS --> INSTALL
+    SYNC -->|Read| RELEASES
 
-```bash
-# Auto-sync on first command of terminal session
-rhinolabs-ai profile list  # Triggers auto-sync
-
-# Or manual sync
-rhinolabs-ai sync
+    style DEPLOY fill:#e53e3e,stroke:#fc8181,color:#fff
+    style SYNC fill:#38a169,stroke:#68d391,color:#fff
+    style INSTALL fill:#38a169,stroke:#68d391,color:#fff
 ```
 
-**Note:** Team developers do NOT need `GITHUB_TOKEN` (read-only operations).
+- **GUI (Lead Devs)**: Full access - create, edit, deploy configurations
+- **CLI (Team Devs)**: Read-only - sync and install, cannot modify shared config
+- **GITHUB_TOKEN**: Only required for deploy (GUI), not for sync (CLI)
+
+## Project Structure
+
+```
+rhinolabs-ai/
+├── cli/                    # Rust CLI (rhinolabs-ai, rlai)
+├── core/                   # Shared Rust library
+├── gui/                    # Tauri desktop app (React + Rust)
+├── rhinolabs-claude/       # Base plugin with skills
+└── docs/                   # Documentation
+```
 
 ## Development
 
@@ -202,24 +346,12 @@ cargo test --workspace
 cd gui/tests && pnpm test
 ```
 
-## Project Structure
-
-| Directory | Description |
-|-----------|-------------|
-| `cli/` | Rust CLI (rhinolabs-ai, rlai) |
-| `core/` | Shared Rust library |
-| `gui/` | Tauri desktop app |
-| `rhinolabs-claude/` | Base plugin with skills |
-| `docs/` | Documentation |
-
 ## Documentation
 
 - [Architecture](ARCHITECTURE.md) - System design and data flow
 - [CLI Guide](cli/README.md) - Detailed CLI documentation
 - [GUI Guide](gui/README.md) - Desktop app documentation
 - [Plugin Structure](rhinolabs-claude/README.md) - Skills and plugin details
-- [Skill Guidelines](docs/SKILL_GUIDELINES.md) - Creating custom skills
-- [MCP Integration](docs/MCP_INTEGRATION.md) - MCP server configuration
 
 ## Support
 
