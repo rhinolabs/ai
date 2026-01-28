@@ -28,6 +28,9 @@ import type {
   UpdateProfileInput,
   AutoInvokeRule,
   ProfileInstallResult,
+  ConfigManifest,
+  DeployResult,
+  SyncResult,
 } from './types';
 
 export const api = {
@@ -431,6 +434,19 @@ export const api = {
 
   updateAutoInvokeRules(profileId: string, rules: AutoInvokeRule[]): Promise<Profile> {
     return invoke('update_auto_invoke_rules', { profileId, rules });
+  },
+
+  // Profile Instructions (per-profile CLAUDE.md)
+  getProfileInstructions(profileId: string): Promise<string> {
+    return invoke('get_profile_instructions', { profileId });
+  },
+
+  updateProfileInstructions(profileId: string, content: string): Promise<void> {
+    return invoke('update_profile_instructions', { profileId, content });
+  },
+
+  openProfileInstructionsInIde(profileId: string, ideCommand: string): Promise<void> {
+    return invoke('open_profile_instructions_in_ide', { profileId, ideCommand });
   },
 
   // Deploy & Sync

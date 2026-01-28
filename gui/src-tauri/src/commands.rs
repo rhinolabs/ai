@@ -595,6 +595,33 @@ pub fn open_output_style_in_ide(style_id: String, ide_command: String) -> Result
     Ok(())
 }
 
+// ============================================
+// Profile Instructions (IDE editing)
+// ============================================
+
+#[tauri::command]
+pub fn get_profile_instructions(profile_id: String) -> Result<String, String> {
+    Profiles::get_instructions(&profile_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_profile_instructions(profile_id: String, content: String) -> Result<(), String> {
+    Profiles::update_instructions(&profile_id, &content).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_profile_instructions_in_ide(profile_id: String, ide_command: String) -> Result<(), String> {
+    // Ensure file exists with current content
+    let path = Profiles::ensure_instructions_file(&profile_id).map_err(|e| e.to_string())?;
+
+    Command::new(&ide_command)
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open IDE: {}", e))?;
+
+    Ok(())
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillFile {

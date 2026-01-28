@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
-import type { Profile, ProfileType, CreateProfileInput, UpdateProfileInput, Skill } from '../types';
+import type { Profile, ProfileType, CreateProfileInput, UpdateProfileInput, Skill, IdeInfo } from '../types';
 import toast from 'react-hot-toast';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-type TabType = 'all-profiles' | 'assign-skills';
+type TabType = 'all-profiles' | 'assign-skills' | 'instructions';
 
 const PROFILE_TYPE_COLORS: Record<ProfileType, string> = {
   user: '#10b981',
@@ -41,6 +43,12 @@ export default function Profiles() {
   const [savingAssignment, setSavingAssignment] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
+  // Instructions state
+  const [instructionsProfileId, setInstructionsProfileId] = useState<string | null>(null);
+  const [instructionsContent, setInstructionsContent] = useState<string>('');
+  const [instructionsLoading, setInstructionsLoading] = useState(false);
+  const [availableIdes, setAvailableIdes] = useState<IdeInfo[]>([]);
+
   // Computed values
   const categories = [...new Set(skills.map(s => s.category))].sort();
   const filteredSkills = categoryFilter
@@ -53,14 +61,16 @@ export default function Profiles() {
 
   async function loadData() {
     try {
-      const [profileList, skillList, defaultProfile] = await Promise.all([
+      const [profileList, skillList, defaultProfile, ides] = await Promise.all([
         api.listProfiles(),
         api.listSkills(),
         api.getDefaultUserProfile(),
+        api.listAvailableIdes(),
       ]);
       setProfiles(profileList);
       setSkills(skillList);
       setDefaultUserProfile(defaultProfile?.id ?? null);
+      setAvailableIdes(ides.filter((ide) => ide.available));
     } catch (err) {
       toast.error('Failed to load profiles data');
     } finally {
@@ -190,6 +200,52 @@ export default function Profiles() {
   }
 
   // ============================================
+  // Instructions Management
+  // ============================================
+
+  async function handleSelectInstructionsProfile(profileId: string) {
+    setInstructionsProfileId(profileId);
+    setInstructionsLoading(true);
+    try {
+      const content = await api.getProfileInstructions(profileId);
+      setInstructionsContent(content);
+    } catch (err) {
+      toast.error('Failed to load instructions');
+      setInstructionsContent('');
+    } finally {
+      setInstructionsLoading(false);
+    }
+  }
+
+  async function handleOpenInstructionsInIde() {
+    if (!instructionsProfileId) return;
+    if (availableIdes.length === 0) {
+      toast.error('No IDE available. Install VS Code, Cursor, or Zed.');
+      return;
+    }
+    try {
+      await api.openProfileInstructionsInIde(instructionsProfileId, availableIdes[0].command);
+      toast.success('Opened in ' + availableIdes[0].name);
+    } catch (err) {
+      toast.error('Failed to open in IDE');
+    }
+  }
+
+  async function handleRefreshInstructions() {
+    if (!instructionsProfileId) return;
+    setInstructionsLoading(true);
+    try {
+      const content = await api.getProfileInstructions(instructionsProfileId);
+      setInstructionsContent(content);
+      toast.success('Instructions refreshed');
+    } catch (err) {
+      toast.error('Failed to refresh instructions');
+    } finally {
+      setInstructionsLoading(false);
+    }
+  }
+
+  // ============================================
   // Render
   // ============================================
 
@@ -217,6 +273,12 @@ export default function Profiles() {
           onClick={() => setActiveTab('assign-skills')}
         >
           Assign Skills
+        </button>
+        <button
+          className={`tab ${activeTab === 'instructions' ? 'active' : ''}`}
+          onClick={() => setActiveTab('instructions')}
+        >
+          Instructions
         </button>
       </div>
 
@@ -523,12 +585,156 @@ export default function Profiles() {
         </div>
       )}
 
+      {/* Instructions Tab */}
+      {activeTab === 'instructions' && (
+        <div className="instructions-tab">
+          {profiles.length === 0 ? (
+            <div className="empty-state">
+              <p>Create a profile first to manage instructions.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '24px' }}>
+              {/* Profile Selector */}
+              <div>
+                <h3>Select Profile</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {profiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      className={`btn ${instructionsProfileId === profile.id ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{
+                        textAlign: 'left',
+                        padding: '12px 16px',
+                      }}
+                      onClick={() => handleSelectInstructionsProfile(profile.id)}
+                    >
+                      <div style={{ fontWeight: 600 }}>
+                        {profile.name}
+                      </div>
+                      <div style={{ fontSize: '12px', opacity: 0.8 }}>
+                        {profile.profileType === 'user' ? 'User Level' : 'Project Level'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Instructions Viewer */}
+              <div>
+                {instructionsProfileId ? (
+                  <>
+                    {/* Header */}
+                    <div
+                      style={{
+                        background: 'var(--primary)',
+                        color: 'white',
+                        padding: '16px 20px',
+                        borderRadius: '8px',
+                        marginBottom: '16px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '12px', opacity: 0.8, marginBottom: '4px' }}>
+                          PROFILE INSTRUCTIONS
+                        </div>
+                        <div style={{ fontSize: '18px', fontWeight: 700 }}>
+                          {profiles.find(p => p.id === instructionsProfileId)?.name}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn"
+                          style={{
+                            background: 'rgba(255,255,255,0.2)',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                          }}
+                          onClick={handleRefreshInstructions}
+                          disabled={instructionsLoading}
+                        >
+                          Refresh
+                        </button>
+                        <button
+                          className="btn"
+                          style={{
+                            background: 'rgba(255,255,255,0.2)',
+                            color: 'white',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                          }}
+                          onClick={handleOpenInstructionsInIde}
+                          disabled={availableIdes.length === 0}
+                        >
+                          Edit in IDE
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Info Notice */}
+                    <div style={{
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.5rem',
+                      padding: '0.75rem 1rem',
+                      marginBottom: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.875rem',
+                      color: 'var(--text-secondary)',
+                    }}>
+                      <span style={{ color: '#8b5cf6' }}>●</span>
+                      <span>
+                        These instructions are included in <code>CLAUDE.md</code> when the profile is installed.
+                        Click "Edit in IDE" to modify.
+                      </span>
+                    </div>
+
+                    {/* Content Viewer */}
+                    {instructionsLoading ? (
+                      <div className="loading">Loading instructions...</div>
+                    ) : (
+                      <div style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: '0.5rem',
+                        overflow: 'auto',
+                        maxHeight: 'calc(100vh - 420px)',
+                      }}>
+                        <SyntaxHighlighter
+                          language="markdown"
+                          style={vscDarkPlus}
+                          showLineNumbers
+                          customStyle={{
+                            margin: 0,
+                            borderRadius: '0.5rem',
+                            fontSize: '0.875rem',
+                          }}
+                        >
+                          {instructionsContent || '# No instructions yet\n\nClick "Edit in IDE" to create instructions for this profile.'}
+                        </SyntaxHighlighter>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="empty-state">
+                    <p>Select a profile to view and edit its instructions</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Info Section */}
       <div className="info-section" style={{ marginTop: '32px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
         <h4>How Profiles Work</h4>
         <ul style={{ margin: '8px 0', paddingLeft: '20px', color: 'var(--text-secondary)' }}>
           <li><strong>User Profiles:</strong> Install to ~/.claude/skills/ and apply to all projects</li>
           <li><strong>Project Profiles:</strong> Install to project/.claude/skills/ for project-specific skills</li>
+          <li><strong>Instructions:</strong> Each profile can have custom instructions that are included in CLAUDE.md</li>
           <li>Use the CLI to install profiles: <code>rhinolabs profile install --profile react-stack --path ./myproject</code></li>
           <li>Claude Code automatically loads skills from both user and project directories</li>
         </ul>

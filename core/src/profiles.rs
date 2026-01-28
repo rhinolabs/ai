@@ -991,6 +991,69 @@ This profile generates:
 
         Ok(map)
     }
+
+    // ============================================
+    // Profile Instructions (per-profile CLAUDE.md)
+    // ============================================
+
+    /// Get the path for a profile's instructions file
+    pub fn get_instructions_path(profile_id: &str) -> Result<PathBuf> {
+        Ok(Self::config_dir()?.join("profile-instructions").join(format!("{}.md", profile_id)))
+    }
+
+    /// Get profile instructions (from file if exists, otherwise from profile config)
+    pub fn get_instructions(profile_id: &str) -> Result<String> {
+        let path = Self::get_instructions_path(profile_id)?;
+        if path.exists() {
+            Ok(fs::read_to_string(&path)?)
+        } else {
+            let profile = Self::get(profile_id)?
+                .ok_or_else(|| RhinolabsError::ConfigError(format!("Profile '{}' not found", profile_id)))?;
+            Ok(profile.instructions.unwrap_or_default())
+        }
+    }
+
+    /// Update profile instructions (writes to file and updates profile config)
+    pub fn update_instructions(profile_id: &str, content: &str) -> Result<()> {
+        // Verify profile exists
+        Self::get(profile_id)?
+            .ok_or_else(|| RhinolabsError::ConfigError(format!("Profile '{}' not found", profile_id)))?;
+
+        // Write to file
+        let path = Self::get_instructions_path(profile_id)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&path, content)?;
+
+        // Update profile config
+        let mut config = Self::load_config()?;
+        if let Some(profile) = config.profiles.iter_mut().find(|p| p.id == profile_id) {
+            profile.instructions = if content.is_empty() { None } else { Some(content.to_string()) };
+            profile.updated_at = chrono::Utc::now().to_rfc3339();
+            Self::save_config(&config)?;
+        }
+
+        Ok(())
+    }
+
+    /// Ensure instructions file exists for editing (creates if needed)
+    pub fn ensure_instructions_file(profile_id: &str) -> Result<PathBuf> {
+        let path = Self::get_instructions_path(profile_id)?;
+
+        // Create directory if needed
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        // If file doesn't exist, create with current content
+        if !path.exists() {
+            let content = Self::get_instructions(profile_id)?;
+            fs::write(&path, &content)?;
+        }
+
+        Ok(path)
+    }
 }
 
 #[cfg(test)]

@@ -112,6 +112,10 @@ pub fn run() {
             open_instructions_in_ide,
             open_output_style_in_ide,
             get_skill_files,
+            // Profile Instructions
+            get_profile_instructions,
+            update_profile_instructions,
+            open_profile_instructions_in_ide,
             // Profiles
             list_profiles,
             get_profile,
