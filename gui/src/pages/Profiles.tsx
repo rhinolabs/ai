@@ -86,11 +86,16 @@ export default function Profiles() {
       return;
     }
     try {
+      // Create the profile
       const newProfile = await api.createProfile(formData);
-      toast.success('Profile created with template instructions');
-      // After creation, switch to edit mode to assign skills
-      setCreating(false);
-      startEdit(newProfile);
+
+      // If skills were selected, assign them
+      if (assignedSkills.size > 0) {
+        await api.assignSkillsToProfile(newProfile.id, Array.from(assignedSkills));
+      }
+
+      toast.success('Profile created');
+      closeEdit();
       loadData();
     } catch (err) {
       const message = typeof err === 'string' ? err : 'Failed to create profile';
@@ -252,73 +257,56 @@ export default function Profiles() {
   if (creating || editing) {
     return (
       <div className="page profiles-page">
-        <div className="page-header">
-          <h1>{creating ? 'Create Profile' : `Edit: ${editing?.name}`}</h1>
-          <p className="subtitle">
-            {creating
-              ? 'New profiles are created with template instructions'
-              : 'Configure profile settings, skills, and instructions'
-            }
-          </p>
-        </div>
-
-        {/* Action Bar - Always visible */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '12px 16px',
-          background: 'var(--bg-secondary)',
-          borderRadius: '8px',
-          marginBottom: '16px',
-        }}>
+        {/* Header with actions */}
+        <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h1>{creating ? 'Create Profile' : `Edit: ${editing?.name}`}</h1>
+            <p className="subtitle">
+              Configure profile settings, skills, and instructions
+            </p>
+          </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {creating ? (
               <button className="btn btn-primary" onClick={handleCreate}>
-                Create Profile
+                Create
               </button>
             ) : (
               <button className="btn btn-primary" onClick={handleUpdate}>
-                Save Changes
+                Save
               </button>
             )}
             <button className="btn btn-secondary" onClick={closeEdit}>
               {creating ? 'Cancel' : 'Close'}
             </button>
           </div>
-          {editing && (
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-              {assignedSkills.size} skills assigned
-            </div>
-          )}
         </div>
 
-        {/* Section Tabs (only in edit mode) */}
-        {editing && (
-          <div className="tabs" style={{ marginBottom: '24px' }}>
-            <button
-              className={`tab ${activeSection === 'basic' ? 'active' : ''}`}
-              onClick={() => setActiveSection('basic')}
-            >
-              Basic Info
-            </button>
-            <button
-              className={`tab ${activeSection === 'skills' ? 'active' : ''}`}
-              onClick={() => setActiveSection('skills')}
-            >
-              Skills ({assignedSkills.size})
-            </button>
+        {/* Section Tabs */}
+        <div className="tabs" style={{ marginBottom: '24px' }}>
+          <button
+            className={`tab ${activeSection === 'basic' ? 'active' : ''}`}
+            onClick={() => setActiveSection('basic')}
+          >
+            Basic Info
+          </button>
+          <button
+            className={`tab ${activeSection === 'skills' ? 'active' : ''}`}
+            onClick={() => setActiveSection('skills')}
+          >
+            Skills ({assignedSkills.size})
+          </button>
+          {!creating && (
             <button
               className={`tab ${activeSection === 'instructions' ? 'active' : ''}`}
               onClick={() => setActiveSection('instructions')}
             >
               Instructions
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Basic Info Section */}
-        {(creating || activeSection === 'basic') && (
+        {activeSection === 'basic' && (
           <div className="card" style={{ padding: '20px', marginBottom: '16px' }}>
             <h3>Profile Information</h3>
             <div className="form-group">
@@ -363,18 +351,20 @@ export default function Profiles() {
           </div>
         )}
 
-        {/* Skills Section (edit mode only) */}
-        {editing && activeSection === 'skills' && (
+        {/* Skills Section */}
+        {activeSection === 'skills' && (
           <div className="card" style={{ padding: '20px', marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Assign Skills</h3>
-              <button
-                className="btn btn-primary"
-                onClick={handleSaveSkills}
-                disabled={savingSkills}
-              >
-                {savingSkills ? 'Saving...' : 'Save Skills'}
-              </button>
+              {editing && (
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveSkills}
+                  disabled={savingSkills}
+                >
+                  {savingSkills ? 'Saving...' : 'Save Skills'}
+                </button>
+              )}
             </div>
 
             {/* Category Filter */}
@@ -438,8 +428,8 @@ export default function Profiles() {
           </div>
         )}
 
-        {/* Instructions Section (edit mode only) */}
-        {editing && activeSection === 'instructions' && (
+        {/* Instructions Section (edit mode only - can't edit instructions until profile exists) */}
+        {!creating && activeSection === 'instructions' && (
           <div className="card" style={{ padding: '20px', marginBottom: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0 }}>Profile Instructions</h3>
