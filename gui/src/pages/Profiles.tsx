@@ -86,13 +86,12 @@ export default function Profiles() {
       return;
     }
     try {
-      // Create the profile
-      const newProfile = await api.createProfile(formData);
-
-      // If skills were selected, assign them
-      if (assignedSkills.size > 0) {
-        await api.assignSkillsToProfile(newProfile.id, Array.from(assignedSkills));
-      }
+      // Create the profile with skills included
+      // Skills are used to generate the instructions template with auto-invoke table
+      await api.createProfile({
+        ...formData,
+        skills: Array.from(assignedSkills),
+      });
 
       toast.success('Profile created');
       closeEdit();

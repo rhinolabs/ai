@@ -293,6 +293,7 @@ export interface CreateProfileInput {
   name: string;
   description: string;
   profileType: ProfileType;
+  skills?: string[];
   instructions?: string;
   generateCopilot?: boolean;
   generateAgents?: boolean;

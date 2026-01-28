@@ -79,6 +79,8 @@ pub struct CreateProfileInput {
     pub description: String,
     pub profile_type: ProfileType,
     #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
     pub instructions: Option<String>,
     #[serde(default = "default_true")]
     pub generate_copilot: bool,
@@ -203,7 +205,36 @@ impl Profiles {
     }
 
     /// Generate template instructions for new project profiles
-    fn generate_template_instructions(profile_name: &str, profile_description: &str) -> String {
+    /// If skills are provided, includes them in the auto-invoke table
+    fn generate_template_instructions(profile_name: &str, profile_description: &str, skill_ids: &[String]) -> String {
+        // Build skills table rows
+        let skills_table = if skill_ids.is_empty() {
+            "| <!-- Add skills to this profile --> | | |".to_string()
+        } else {
+            // Load skill details to get names and descriptions
+            let rows: Vec<String> = skill_ids.iter().filter_map(|skill_id| {
+                if let Ok(Some(skill)) = Skills::get(skill_id) {
+                    let context = if skill.description.is_empty() {
+                        format!("Working with {}", skill.name)
+                    } else {
+                        skill.description.clone()
+                    };
+                    Some(format!(
+                        "| {} | `{}` | `.claude/skills/{}/SKILL.md` |",
+                        context,
+                        skill.id,
+                        skill.id
+                    ))
+                } else {
+                    Some(format!(
+                        "| Working with {} | `{}` | `.claude/skills/{}/SKILL.md` |",
+                        skill_id, skill_id, skill_id
+                    ))
+                }
+            }).collect();
+            rows.join("\n")
+        };
+
         format!(r#"# {} - Project Instructions
 
 > Edit this file to define AI behavior for projects using this profile.
@@ -238,14 +269,11 @@ impl Profiles {
 
 ## Skills Auto-invoke
 
-<!-- Define when each skill should be automatically loaded -->
-<!-- This table is auto-populated based on assigned skills -->
-
 IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the corresponding skill file BEFORE writing any code.
 
 | Context | Skill | Read First |
 |---------|-------|------------|
-| <!-- Add rows based on assigned skills --> | | |
+{}
 
 ## How to Use Skills
 
@@ -259,6 +287,7 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
 "#,
             profile_name,
             profile_description,
+            skills_table,
             profile_name
         )
     }
@@ -344,8 +373,9 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
         let now = chrono::Utc::now().to_rfc3339();
 
         // Generate template instructions for new profiles (if not provided)
+        // Include assigned skills in the auto-invoke table
         let instructions = input.instructions.or_else(|| {
-            Some(Self::generate_template_instructions(&input.name, &input.description))
+            Some(Self::generate_template_instructions(&input.name, &input.description, &input.skills))
         });
 
         let profile = Profile {
@@ -353,7 +383,7 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
             name: input.name.clone(),
             description: input.description.clone(),
             profile_type: ProfileType::Project, // Always Project for new profiles
-            skills: Vec::new(),
+            skills: input.skills.clone(), // Assign skills during creation
             auto_invoke_rules: Vec::new(),
             instructions,
             generate_copilot: input.generate_copilot,

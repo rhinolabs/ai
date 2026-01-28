@@ -36,13 +36,13 @@ function App() {
             </NavLink>
           </li>
           <li>
-            <NavLink to="/profiles" onClick={() => setSidebarOpen(false)}>
-              Profiles
+            <NavLink to="/skills" onClick={() => setSidebarOpen(false)}>
+              Skills
             </NavLink>
           </li>
           <li>
-            <NavLink to="/skills" onClick={() => setSidebarOpen(false)}>
-              Skills
+            <NavLink to="/profiles" onClick={() => setSidebarOpen(false)}>
+              Profiles
             </NavLink>
           </li>
           <li>
