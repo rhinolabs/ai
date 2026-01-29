@@ -288,12 +288,6 @@ export default function Profiles() {
           >
             Basic Info
           </button>
-          <button
-            className={`tab ${activeSection === 'skills' ? 'active' : ''}`}
-            onClick={() => setActiveSection('skills')}
-          >
-            Skills ({assignedSkills.size})
-          </button>
           {!creating && (
             <button
               className={`tab ${activeSection === 'instructions' ? 'active' : ''}`}
@@ -302,6 +296,12 @@ export default function Profiles() {
               Instructions
             </button>
           )}
+          <button
+            className={`tab ${activeSection === 'skills' ? 'active' : ''}`}
+            onClick={() => setActiveSection('skills')}
+          >
+            Skills ({assignedSkills.size})
+          </button>
         </div>
 
         {/* Basic Info Section */}

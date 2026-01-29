@@ -46,13 +46,13 @@ function App() {
             </NavLink>
           </li>
           <li>
-            <NavLink to="/mcp" onClick={() => setSidebarOpen(false)}>
-              MCP
+            <NavLink to="/output-style" onClick={() => setSidebarOpen(false)}>
+              Output Style
             </NavLink>
           </li>
           <li>
-            <NavLink to="/output-style" onClick={() => setSidebarOpen(false)}>
-              Output Style
+            <NavLink to="/mcp" onClick={() => setSidebarOpen(false)}>
+              MCP
             </NavLink>
           </li>
           <li>
