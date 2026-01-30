@@ -3,13 +3,29 @@
 # Default target
 help:
 	@echo "Available commands:"
+	@echo "  make help        - Show this help message"
 	@echo "  make setup-hooks - Configure git hooks (run after clone)"
 	@echo "  make test        - Run ALL tests (Rust + E2E)"
 	@echo "  make test-rust   - Run Rust tests only (core + cli)"
 	@echo "  make test-e2e    - Run E2E tests only (GUI)"
 	@echo "  make test-quick  - Run quick tests (Rust only, no E2E)"
 	@echo "  make build       - Build all components"
+	@echo "  make install     - Install all dependencies"
+	@echo "  make run         - Run the Tauri application (Dev)"
 	@echo "  make clean       - Clean build artifacts"
+
+# Install dependencies
+install:
+	@echo "Installing Rust dependencies..."
+	cargo fetch
+	@echo "Installing GUI dependencies..."
+	cd gui && pnpm install
+	@echo "✓ Dependencies installed"
+
+# Run the Tauri application (Dev mode)
+run:
+	@echo "Starting Tauri app..."
+	cd gui && pnpm tauri dev
 
 # Setup git hooks (run this after cloning)
 setup-hooks:
