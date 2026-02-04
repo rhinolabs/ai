@@ -370,6 +370,7 @@ pub fn add_skill_source(input: AddSkillSourceInput) -> Result<(), String> {
 
     let schema = match input.schema.as_str() {
         "standard" => SkillSchema::Standard,
+        "skills-sh" => SkillSchema::SkillsSh,
         _ => SkillSchema::Custom,
     };
 
@@ -400,6 +401,7 @@ pub fn update_skill_source(
 ) -> Result<(), String> {
     let schema = schema.map(|s| match s.as_str() {
         "standard" => SkillSchema::Standard,
+        "skills-sh" => SkillSchema::SkillsSh,
         _ => SkillSchema::Custom,
     });
     Skills::update_source(&id, enabled, name, url, description, fetchable, schema)
@@ -468,7 +470,7 @@ pub async fn fetch_remote_skills(source_id: String) -> Result<Vec<RemoteSkill>, 
         .find(|s| s.id == source_id)
         .ok_or_else(|| format!("Source '{}' not found", source_id))?;
 
-    Skills::fetch_from_github(&source)
+    Skills::fetch_from_source(&source)
         .await
         .map_err(|e| e.to_string())
 }

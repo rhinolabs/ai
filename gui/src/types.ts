@@ -82,7 +82,7 @@ export interface OutputStyle {
 export type SkillSourceType = 'official' | 'marketplace' | 'community' | 'local';
 
 /** Schema/structure used by a skill source repository */
-export type SkillSchema = 'standard' | 'custom';
+export type SkillSchema = 'standard' | 'skills-sh' | 'custom';
 
 export interface SkillSource {
   id: string;

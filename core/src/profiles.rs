@@ -1284,6 +1284,7 @@ mod tests {
             fs::create_dir_all(self.skills_dir()).expect("Failed to create skills dir");
         }
 
+        #[allow(dead_code)]
         fn create_skill(&self, id: &str, name: &str, description: &str, content: &str) {
             let skill_dir = self.skills_dir().join(id);
             fs::create_dir_all(&skill_dir).expect("Failed to create skill dir");
@@ -1295,6 +1296,7 @@ mod tests {
                 .expect("Failed to write skill file");
         }
 
+        #[allow(dead_code)]
         fn create_profiles_config(&self, config: &ProfilesConfig) {
             let config_path = self.config_path();
             if let Some(parent) = config_path.parent() {

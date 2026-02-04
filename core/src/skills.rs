@@ -23,6 +23,9 @@ pub enum SkillSchema {
     /// Standard Agent Skills format: /skills/{name}/SKILL.md (agentskills.io)
     #[default]
     Standard,
+    /// Skills.sh aggregator format - scrapes skills from skills.sh HTML
+    #[serde(rename = "skills-sh")]
+    SkillsSh,
     /// Custom schema - for future extensibility
     Custom,
 }
@@ -952,6 +955,17 @@ impl Skills {
         Ok(ids)
     }
 
+    /// Fetch skills from a source, choosing the appropriate method based on schema
+    pub async fn fetch_from_source(source: &SkillSource) -> Result<Vec<RemoteSkill>> {
+        match source.schema {
+            SkillSchema::Standard => Self::fetch_from_github(source).await,
+            SkillSchema::SkillsSh => Self::fetch_from_skills_sh(source).await,
+            SkillSchema::Custom => Err(RhinolabsError::ConfigError(
+                "Custom schema sources cannot be fetched automatically".into(),
+            )),
+        }
+    }
+
     /// Fetch skills from a GitHub repository
     /// Expects URL format: https://github.com/owner/repo
     pub async fn fetch_from_github(source: &SkillSource) -> Result<Vec<RemoteSkill>> {
@@ -1036,6 +1050,153 @@ impl Skills {
         }
 
         Ok(remote_skills)
+    }
+
+    /// Fetch skills from skills.sh by scraping the HTML
+    /// The site embeds JSON data in the HTML that we can extract
+    pub async fn fetch_from_skills_sh(source: &SkillSource) -> Result<Vec<RemoteSkill>> {
+        let client = reqwest::Client::new();
+
+        // Fetch the skills.sh page (use /hot for popular skills)
+        let url = if source.url.ends_with('/') {
+            format!("{}hot", source.url)
+        } else if source.url == "https://skills.sh" || source.url == "https://skills.sh/" {
+            "https://skills.sh/hot".to_string()
+        } else {
+            source.url.clone()
+        };
+
+        let response = client
+            .get(&url)
+            .header("User-Agent", "rhinolabs-ai")
+            .send()
+            .await
+            .map_err(|e| RhinolabsError::NetworkError(e.to_string()))?;
+
+        if !response.status().is_success() {
+            return Err(RhinolabsError::NetworkError(format!(
+                "Failed to fetch skills.sh: {}",
+                response.status()
+            )));
+        }
+
+        let html = response
+            .text()
+            .await
+            .map_err(|e| RhinolabsError::NetworkError(e.to_string()))?;
+
+        // Extract JSON data from HTML - skills.sh embeds data in allTimeSkills array
+        let skills_json = Self::extract_skills_sh_data(&html)?;
+
+        // Get installed skill IDs
+        let installed = Self::installed_ids().unwrap_or_default();
+
+        let mut remote_skills = Vec::new();
+
+        for skill_data in skills_json {
+            let source_repo = skill_data
+                .get("source")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let skill_id = skill_data
+                .get("skillId")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default();
+            let name = skill_data
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or(skill_id);
+            let installs = skill_data
+                .get("installs")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
+            if source_repo.is_empty() || skill_id.is_empty() {
+                continue;
+            }
+
+            // Build GitHub URL for this skill
+            let skill_url = format!(
+                "https://github.com/{}/tree/main/skills/{}",
+                source_repo, skill_id
+            );
+
+            // Create unique ID combining source repo and skill id
+            let unique_id = format!("{}/{}", source_repo, skill_id);
+
+            remote_skills.push(RemoteSkill {
+                id: unique_id.clone(),
+                name: name.to_string(),
+                description: format!("From {} ({} installs)", source_repo, installs),
+                category: "community".to_string(),
+                source_id: source.id.clone(),
+                source_name: source.name.clone(),
+                url: skill_url,
+                stars: Some(installs as u32),
+                installed: installed.contains(&skill_id.to_string())
+                    || installed.contains(&unique_id),
+            });
+        }
+
+        Ok(remote_skills)
+    }
+
+    /// Extract skills data from skills.sh HTML
+    /// Supports both regular JSON and backslash-escaped JSON formats
+    fn extract_skills_sh_data(html: &str) -> Result<Vec<serde_json::Value>> {
+        use std::collections::HashSet;
+
+        let mut skills = Vec::new();
+        let mut seen = HashSet::new();
+
+        // Try regular JSON format first: {"source":"owner/repo",...}
+        let mut pos = 0;
+        while let Some(start) = html[pos..].find(r#"{"source":""#) {
+            let abs_start = pos + start;
+            if let Some(end) = html[abs_start..].find('}') {
+                let obj_str = &html[abs_start..abs_start + end + 1];
+                if let Ok(skill) = serde_json::from_str::<serde_json::Value>(obj_str) {
+                    if let Some(skill_id) = skill.get("skillId").and_then(|v| v.as_str()) {
+                        if seen.insert(skill_id.to_string()) {
+                            skills.push(skill);
+                        }
+                    }
+                }
+                pos = abs_start + end + 1;
+            } else {
+                break;
+            }
+        }
+
+        // Fallback: try escaped JSON format: {\"source\":\"owner/repo\",...}
+        if skills.is_empty() {
+            pos = 0;
+            while let Some(start) = html[pos..].find("{\\\"source\\\":\\\"") {
+                let abs_start = pos + start;
+                if let Some(end) = html[abs_start..].find('}') {
+                    let obj_str = &html[abs_start..abs_start + end + 1];
+                    let unescaped = obj_str.replace("\\\"", "\"");
+                    if let Ok(skill) = serde_json::from_str::<serde_json::Value>(&unescaped) {
+                        if let Some(skill_id) = skill.get("skillId").and_then(|v| v.as_str()) {
+                            if seen.insert(skill_id.to_string()) {
+                                skills.push(skill);
+                            }
+                        }
+                    }
+                    pos = abs_start + end + 1;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        if skills.is_empty() {
+            return Err(RhinolabsError::ConfigError(
+                "Could not find skills data in skills.sh HTML".into(),
+            ));
+        }
+
+        Ok(skills)
     }
 
     /// Helper to fetch skill content from URL
@@ -2131,5 +2292,205 @@ This is the content.
             parsed.category_map.get("skill-b"),
             Some(&SkillCategory::Testing)
         );
+    }
+}
+
+#[cfg(test)]
+mod skills_sh_tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_skills_sh_data_regular_json() {
+        let html = r#"some prefix allTimeSkills":[{"source":"vercel-labs/skills","skillId":"find-skills","name":"find-skills","installs":98546},{"source":"test/repo","skillId":"test-skill","name":"Test Skill","installs":100}] more suffix"#;
+
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_ok(), "Should parse regular JSON: {:?}", result);
+
+        let skills = result.unwrap();
+        assert_eq!(skills.len(), 2, "Should find 2 skills");
+
+        assert_eq!(
+            skills[0].get("source").and_then(|v| v.as_str()),
+            Some("vercel-labs/skills")
+        );
+        assert_eq!(
+            skills[0].get("skillId").and_then(|v| v.as_str()),
+            Some("find-skills")
+        );
+        assert_eq!(
+            skills[1].get("skillId").and_then(|v| v.as_str()),
+            Some("test-skill")
+        );
+    }
+
+    #[test]
+    fn test_extract_skills_sh_data_escaped_json() {
+        let html = r#"some prefix allTimeSkills\":[{\"source\":\"vercel-labs/skills\",\"skillId\":\"find-skills\",\"name\":\"find-skills\",\"installs\":98546},{\"source\":\"test/repo\",\"skillId\":\"test-skill\",\"name\":\"Test Skill\",\"installs\":100}] more suffix"#;
+
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_ok(), "Should parse escaped JSON: {:?}", result);
+
+        let skills = result.unwrap();
+        assert_eq!(skills.len(), 2, "Should find 2 skills");
+
+        assert_eq!(
+            skills[0].get("source").and_then(|v| v.as_str()),
+            Some("vercel-labs/skills")
+        );
+    }
+
+    #[test]
+    fn test_extract_skills_sh_data_deduplicates() {
+        let html = r#"first [{"source":"a/b","skillId":"skill-1","name":"S1","installs":10}] second [{"source":"a/b","skillId":"skill-1","name":"S1","installs":10}]"#;
+
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_ok());
+
+        let skills = result.unwrap();
+        assert_eq!(skills.len(), 1, "Should deduplicate by skillId");
+    }
+
+    #[test]
+    fn test_extract_skills_sh_data_no_data() {
+        let html = "<html><body>No skills here</body></html>";
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_err(), "Should error on empty data");
+    }
+
+    #[test]
+    fn test_extract_skills_sh_data_skips_missing_fields() {
+        // Objects missing skillId should be skipped
+        let html = r#"[{"source":"a/b","name":"no-id","installs":1},{"source":"c/d","skillId":"valid","name":"Valid","installs":2}]"#;
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_ok());
+        let skills = result.unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(
+            skills[0].get("skillId").and_then(|v| v.as_str()),
+            Some("valid")
+        );
+    }
+
+    #[test]
+    fn test_extract_skills_sh_data_skips_malformed_json() {
+        // First object has truncated value (no closing quote on source), second is valid
+        let html =
+            r#"{"source":"bad} {"source":"a/b","skillId":"good","name":"Good","installs":5}"#;
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_ok());
+        let skills = result.unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(
+            skills[0].get("skillId").and_then(|v| v.as_str()),
+            Some("good")
+        );
+    }
+
+    #[test]
+    fn test_extract_skills_sh_data_large_dedup() {
+        // Simulate many duplicates (like Next.js SSR hydration repeating data)
+        let mut html = String::from("prefix ");
+        for i in 0..100 {
+            html.push_str(&format!(
+                r#"{{"source":"owner/repo","skillId":"skill-{}","name":"Skill {}","installs":{}}}"#,
+                i % 10, // Only 10 unique IDs
+                i,
+                i * 100
+            ));
+            html.push(',');
+        }
+        let result = Skills::extract_skills_sh_data(&html);
+        assert!(result.is_ok());
+        let skills = result.unwrap();
+        assert_eq!(skills.len(), 10, "Should deduplicate to 10 unique skills");
+    }
+
+    #[test]
+    fn test_extract_prefers_regular_over_escaped() {
+        // If regular JSON is found, escaped fallback should NOT run
+        let html = r#"[{"source":"a/b","skillId":"regular","name":"Regular","installs":1}] also {\"source\":\"c/d\",\"skillId\":\"escaped\",\"name\":\"Escaped\",\"installs\":2}"#;
+        let result = Skills::extract_skills_sh_data(html);
+        assert!(result.is_ok());
+        let skills = result.unwrap();
+        // Regular format found first, so escaped fallback is skipped
+        assert!(skills
+            .iter()
+            .any(|s| s.get("skillId").and_then(|v| v.as_str()) == Some("regular")));
+    }
+
+    #[test]
+    fn test_fetch_from_source_routes_standard_schema() {
+        // Verify dispatch: Standard schema should NOT call skills_sh parser
+        let source = SkillSource {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            source_type: SkillSourceType::Community,
+            url: "not-a-valid-github-url".to_string(),
+            description: "".to_string(),
+            enabled: true,
+            fetchable: true,
+            schema: SkillSchema::Standard,
+            skill_count: None,
+        };
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(Skills::fetch_from_source(&source));
+        // Should fail because URL is invalid GitHub, NOT because of skills.sh parsing
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            !err.contains("skills.sh"),
+            "Standard schema should NOT try skills.sh parser, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn test_fetch_from_source_rejects_custom_schema() {
+        let source = SkillSource {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            source_type: SkillSourceType::Community,
+            url: "https://example.com".to_string(),
+            description: "".to_string(),
+            enabled: true,
+            fetchable: true,
+            schema: SkillSchema::Custom,
+            skill_count: None,
+        };
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let result = rt.block_on(Skills::fetch_from_source(&source));
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("cannot be fetched automatically"));
+    }
+}
+
+#[cfg(test)]
+mod skills_sh_integration_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_fetch_from_skills_sh_real() {
+        let source = SkillSource {
+            id: "skills-sh-test".to_string(),
+            name: "Skills.sh Test".to_string(),
+            source_type: SkillSourceType::Community,
+            url: "https://skills.sh".to_string(),
+            description: "Test".to_string(),
+            enabled: true,
+            fetchable: true,
+            schema: SkillSchema::SkillsSh,
+            skill_count: None,
+        };
+
+        let result = Skills::fetch_from_source(&source).await;
+        println!("Result: {:?}", result);
+
+        assert!(result.is_ok(), "Should fetch skills: {:?}", result);
+        let skills = result.unwrap();
+        assert!(!skills.is_empty(), "Should have some skills");
+        println!("Found {} skills", skills.len());
     }
 }

@@ -25,6 +25,20 @@
 - If a test file was modified, run that specific test file first
 - If tests fail, fix them before moving on - NEVER skip failing tests
 
+## Pre-commit Checklist (MANDATORY)
+
+BEFORE any commit or push, you MUST run ALL of the following IN ORDER.
+If ANY step fails, DO NOT commit. Fix and re-run ALL steps.
+
+1. `cargo fmt --all -- --check`
+2. `cargo clippy --workspace -- -D warnings`
+3. `cargo test --workspace`
+4. `cd gui && pnpm test` (Playwright E2E tests)
+5. `act push --job test --matrix os:ubuntu-latest`
+
+NEVER skip step 4. Rust tests and E2E tests are BOTH required.
+NEVER commit or push if you have not seen ALL steps pass in the current session.
+
 ## Personality
 
 Professional, helpful, and direct. Focus on delivering value and teaching best practices. Goal: help the team build quality software efficiently.

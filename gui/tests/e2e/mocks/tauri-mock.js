@@ -142,6 +142,16 @@
         fetchable: false,
         schema: 'standard',
       },
+      {
+        id: 'skills-sh-source',
+        name: 'Skills.sh',
+        sourceType: 'community',
+        url: 'https://skills.sh',
+        description: 'Skills.sh aggregator',
+        enabled: true,
+        fetchable: true,
+        schema: 'skills-sh',
+      },
     ],
 
     // Available IDEs
@@ -586,7 +596,26 @@
 
       case 'fetch_remote_skills': {
         const { sourceId } = args;
-        // Return mock remote skills with all required fields
+
+        // For skills-sh source, return 120 skills to test pagination
+        if (sourceId === 'skills-sh-source') {
+          const skills = [];
+          for (let i = 0; i < 120; i++) {
+            skills.push({
+              id: `skills-sh/skill-${i}`,
+              name: `Skill ${i}`,
+              description: `From owner-${Math.floor(i / 5)}/repo (${(120 - i) * 100} installs)`,
+              category: 'community',
+              sourceId: sourceId,
+              sourceName: 'Skills.sh',
+              url: `https://github.com/owner-${Math.floor(i / 5)}/repo/tree/main/skills/skill-${i}`,
+              installed: i === 3, // One skill is installed
+            });
+          }
+          return skills;
+        }
+
+        // Default: return 2 skills for other sources
         const sourceName = sourceId === 'anthropic-official' ? 'Anthropic Official' : 'Community Skills';
         return [
           {

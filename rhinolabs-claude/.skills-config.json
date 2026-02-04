@@ -51,6 +51,16 @@
       "enabled": true,
       "fetchable": true,
       "schema": "standard"
+    },
+    {
+      "id": "skills.sh",
+      "name": "Skills.sh",
+      "sourceType": "community",
+      "url": "https://skills.sh/",
+      "description": "The Open Agent Skills Ecosystem",
+      "enabled": true,
+      "fetchable": true,
+      "schema": "skills-sh"
     }
   ],
   "skillMeta": {

@@ -153,8 +153,8 @@ mod tests {
 
         // Same version
         let v1_dup = SemVersion::parse("1.0.0").unwrap();
-        assert!(!(v1 > v1_dup));
-        assert!(!(v1 < v1_dup));
+        assert!(v1 <= v1_dup);
+        assert!(v1 >= v1_dup);
     }
 
     #[test]

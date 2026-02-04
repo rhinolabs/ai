@@ -296,7 +296,7 @@ test.describe('Skills - Sources Tab', () => {
   test('should show auto-fetch badge for fetchable sources', async ({ page }) => {
     await page.getByRole('button', { name: /sources/i }).click();
 
-    await expect(page.locator('.category-badge').filter({ hasText: /auto-fetch/i })).toBeVisible();
+    await expect(page.locator('.category-badge').filter({ hasText: /auto-fetch/i }).first()).toBeVisible();
   });
 
   test('should show browse-only badge for non-fetchable sources', async ({ page }) => {
@@ -495,5 +495,107 @@ test.describe('Skills - Change Category', () => {
 
     // Popup should be closed
     await expect(page.getByRole('heading', { name: /change category/i })).not.toBeVisible();
+  });
+});
+
+test.describe('Skills - Browse Pagination & Search', () => {
+  test.beforeEach(async ({ page }) => {
+    const mockContent = fs.readFileSync(path.resolve(__dirname, 'mocks/tauri-mock.js'), 'utf-8');
+    await page.addInitScript(mockContent);
+    await page.goto('/skills');
+    await page.waitForLoadState('networkidle');
+    // Navigate to Browse tab and select the large source
+    await page.getByRole('button', { name: /browse/i }).click();
+    await page.locator('select').filter({ hasText: /select source/i }).selectOption('skills-sh-source');
+    // Wait for skills to load
+    await expect(page.getByText(/120 skills/)).toBeVisible();
+  });
+
+  test('should show search input', async ({ page }) => {
+    await expect(page.getByPlaceholder(/search skills/i)).toBeVisible();
+  });
+
+  test('should show total skills count', async ({ page }) => {
+    await expect(page.getByText('120 skills')).toBeVisible();
+  });
+
+  test('should show pagination controls', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Prev', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeVisible();
+    await expect(page.getByText(/page 1 of 3/i)).toBeVisible();
+  });
+
+  test('should show only 50 skills per page', async ({ page }) => {
+    const items = page.locator('.list-item');
+    await expect(items).toHaveCount(50);
+  });
+
+  test('should disable Prev button on first page', async ({ page }) => {
+    await expect(page.getByRole('button', { name: 'Prev', exact: true })).toBeDisabled();
+  });
+
+  test('should navigate to next page', async ({ page }) => {
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText(/page 2 of 3/i)).toBeVisible();
+    // Should show Skill 50 (first of page 2)
+    await expect(page.getByText('Skill 50').first()).toBeVisible();
+  });
+
+  test('should navigate to previous page', async ({ page }) => {
+    // Go to page 2
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText(/page 2 of 3/i)).toBeVisible();
+    // Go back to page 1
+    await page.getByRole('button', { name: 'Prev', exact: true }).click();
+    await expect(page.getByText(/page 1 of 3/i)).toBeVisible();
+    await expect(page.getByText('Skill 0').first()).toBeVisible();
+  });
+
+  test('should navigate to last page with fewer items', async ({ page }) => {
+    // Go to page 3 (last page: 120 skills, 50/page → page 3 has 20 skills)
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText(/page 3 of 3/i)).toBeVisible();
+    const items = page.locator('.list-item');
+    await expect(items).toHaveCount(20);
+    // Next should be disabled on last page
+    await expect(page.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
+  });
+
+  test('should filter skills by search query', async ({ page }) => {
+    await page.getByPlaceholder(/search skills/i).fill('Skill 10');
+    // Should match: Skill 10, Skill 100-109 = 11 results
+    await expect(page.getByText(/11 skills matching/i)).toBeVisible();
+  });
+
+  test('should show no results message for empty search', async ({ page }) => {
+    await page.getByPlaceholder(/search skills/i).fill('xyznonexistent');
+    await expect(page.getByText(/no skills match/i)).toBeVisible();
+  });
+
+  test('should reset to page 1 when searching', async ({ page }) => {
+    // Go to page 2
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.getByText(/page 2 of 3/i)).toBeVisible();
+    // Search for something with >50 results to keep pagination visible
+    // "Skill 1" matches: Skill 1, Skill 10-19, Skill 100-119 = 22 items → but also Skill 1x descriptions
+    // Use "owner-" which appears in all descriptions → all 120 match → still page 1
+    await page.getByPlaceholder(/search skills/i).fill('owner-');
+    await expect(page.getByText(/page 1 of/i)).toBeVisible();
+  });
+
+  test('should reset search when changing source', async ({ page }) => {
+    // Type a search
+    await page.getByPlaceholder(/search skills/i).fill('something');
+    // Switch source
+    await page.locator('select').filter({ hasText: /skills\.sh/i }).selectOption('anthropic-official');
+    // Search should be cleared - check that Remote Skill 1 appears (no filter)
+    await expect(page.getByText('Remote Skill 1')).toBeVisible();
+  });
+
+  test('should show skills-sh source in dropdown', async ({ page }) => {
+    // Options inside <select> are hidden in Playwright; verify the select has the option value
+    const select = page.locator('select').filter({ hasText: /select source/i });
+    await expect(select.locator('option[value="skills-sh-source"]')).toHaveCount(1);
   });
 });

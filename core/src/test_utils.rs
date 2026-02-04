@@ -1,11 +1,11 @@
+//! Test utilities for managing the test environment
+//!
+//! Since multiple modules use the RHINOLABS_DEV_PATH environment variable,
+//! tests must be serialized to avoid conflicts. This module provides a shared
+//! mutex and helper struct for managing test isolation.
+
 #[cfg(test)]
 use std::path::PathBuf;
-/// Test utilities for managing the test environment
-///
-/// Since multiple modules use the RHINOLABS_DEV_PATH environment variable,
-/// tests must be serialized to avoid conflicts. This module provides a shared
-/// mutex and helper struct for managing test isolation.
-
 #[cfg(test)]
 use std::sync::Mutex;
 #[cfg(test)]

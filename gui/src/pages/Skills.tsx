@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import type { Skill, SkillCategory, CreateSkillInput, SkillSource, SkillSourceType, SkillSchema, RemoteSkill, IdeInfo, SkillFile, RemoteSkillFile } from '../types';
 import toast from 'react-hot-toast';
@@ -58,8 +58,12 @@ export default function Skills() {
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [remoteSkills, setRemoteSkills] = useState<RemoteSkill[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
+  const remoteSkillsCache = useRef<Record<string, RemoteSkill[]>>({});
   const [addingSkill, setAddingSkill] = useState<string | null>(null);
   const [previewingSkillId, setPreviewingSkillId] = useState<string | null>(null);
+  const [browseSearch, setBrowseSearch] = useState('');
+  const [browsePage, setBrowsePage] = useState(1);
+  const SKILLS_PER_PAGE = 50;
 
   // Category popup (for change and install)
   const [categoryPopup, setCategoryPopup] = useState<{
@@ -358,13 +362,23 @@ export default function Skills() {
   // Browse Actions
   // ============================================
 
-  async function handleSelectSource(sourceId: string) {
+  async function handleSelectSource(sourceId: string, forceRefresh = false) {
     setSelectedSource(sourceId);
+    setBrowseSearch('');
+    setBrowsePage(1);
+
+    // Use cache if available
+    if (!forceRefresh && remoteSkillsCache.current[sourceId]) {
+      setRemoteSkills(remoteSkillsCache.current[sourceId]);
+      return;
+    }
+
     setBrowseLoading(true);
     setRemoteSkills([]);
 
     try {
       const skills = await api.fetchRemoteSkills(sourceId);
+      remoteSkillsCache.current[sourceId] = skills;
       setRemoteSkills(skills);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to fetch skills';
@@ -394,14 +408,29 @@ export default function Skills() {
     setPreviewingSkillId(remote.id);
 
     try {
-      // Get the source URL
+      // Get the source
       const source = sources.find((s) => s.id === remote.sourceId);
       if (!source) {
         throw new Error('Source not found');
       }
 
+      // For skills.sh skills, extract GitHub repo URL from remote.url
+      // remote.url format: https://github.com/owner/repo/tree/main/skills/skill-id
+      // We need: https://github.com/owner/repo and skill-id
+      let repoUrl = source.url;
+      let skillId = remote.id;
+
+      if (source.schema === 'skills-sh' && remote.url.includes('github.com')) {
+        // Extract repo URL and skill ID from the remote.url
+        const match = remote.url.match(/https:\/\/github\.com\/([^/]+\/[^/]+)\/tree\/main\/skills\/(.+)/);
+        if (match) {
+          repoUrl = `https://github.com/${match[1]}`;
+          skillId = match[2];
+        }
+      }
+
       // Fetch the file structure
-      const files = await api.fetchRemoteSkillFiles(source.url, remote.id);
+      const files = await api.fetchRemoteSkillFiles(repoUrl, skillId);
 
       // Only update state if this is still the skill we're previewing
       setPreviewFiles(files);
@@ -888,11 +917,13 @@ export default function Skills() {
                 value={sourceForm.schema}
                 onChange={(e) => setSourceForm({ ...sourceForm, schema: e.target.value as SkillSchema })}
               >
-                <option value="standard">Standard (agentskills.io)</option>
-                <option value="custom">Custom</option>
+                <option value="standard">Standard (GitHub repo)</option>
+                <option value="skills-sh">Skills.sh (aggregator)</option>
+                <option value="custom">Custom (browse only)</option>
               </select>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
-                Standard: GitHub repo with <code>/skills/skill-name/SKILL.md</code> structure (Anthropic, Vercel)
+                Standard: GitHub repo with <code>/skills/skill-name/SKILL.md</code> structure<br/>
+                Skills.sh: Aggregator sites like skills.sh that list skills from multiple repos
               </p>
             </div>
           )}
@@ -1355,7 +1386,7 @@ export default function Skills() {
 
           {/* Remote skills list (only for fetchable sources) */}
           {selectedSource && enabledSources.find((s) => s.id === selectedSource)?.fetchable && (
-            <div style={SCROLLABLE_LIST_STYLE}>
+            <>
               {browseLoading ? (
                 <div style={{ padding: '2rem', textAlign: 'center' }}>
                   <div className="spinner" style={{ margin: '0 auto' }} />
@@ -1365,50 +1396,113 @@ export default function Skills() {
                 <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>
                   No skills found in this source, or the repository structure is not compatible.
                 </p>
-              ) : (
-                remoteSkills.map((remote) => (
-                  <div
-                    key={remote.id}
-                    className="list-item"
-                    style={{ margin: 0, borderRadius: 0, borderBottom: '1px solid var(--border)' }}
-                  >
-                    <div className="item-info">
-                      <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {remote.name}
-                        {remote.installed && (
-                          <span className="status-badge success">In Plugin</span>
-                        )}
-                      </h4>
-                      <p>{remote.description}</p>
+              ) : (() => {
+                const query = browseSearch.toLowerCase();
+                const filtered = query
+                  ? remoteSkills.filter((s) =>
+                      s.name.toLowerCase().includes(query) ||
+                      s.id.toLowerCase().includes(query) ||
+                      s.description.toLowerCase().includes(query)
+                    )
+                  : remoteSkills;
+                const totalPages = Math.ceil(filtered.length / SKILLS_PER_PAGE);
+                const page = Math.min(browsePage, totalPages || 1);
+                const pageSkills = filtered.slice((page - 1) * SKILLS_PER_PAGE, page * SKILLS_PER_PAGE);
+
+                return (
+                  <>
+                    {/* Search + info bar */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Search skills..."
+                        value={browseSearch}
+                        onChange={(e) => { setBrowseSearch(e.target.value); setBrowsePage(1); }}
+                        style={{ flex: 1, maxWidth: '400px' }}
+                      />
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', whiteSpace: 'nowrap' }}>
+                        {filtered.length} skill{filtered.length !== 1 ? 's' : ''}
+                        {query && ` matching "${browseSearch}"`}
+                      </span>
                     </div>
-                    <div className="item-actions">
-                      {remote.installed ? (
-                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                          Already in plugin
-                        </span>
+
+                    {/* Skills list */}
+                    <div style={SCROLLABLE_LIST_STYLE}>
+                      {pageSkills.length === 0 ? (
+                        <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '2rem' }}>
+                          No skills match your search.
+                        </p>
                       ) : (
-                        <>
-                          <button
-                            className="btn btn-sm btn-secondary"
-                            onClick={() => handlePreviewRemote(remote)}
-                            disabled={previewingSkillId === remote.id || addingSkill === remote.id}
+                        pageSkills.map((remote) => (
+                          <div
+                            key={remote.id}
+                            className="list-item"
+                            style={{ margin: 0, borderRadius: 0, borderBottom: '1px solid var(--border)' }}
                           >
-                            {previewingSkillId === remote.id ? 'Loading...' : 'Preview'}
-                          </button>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={() => handleAddFromSource(remote)}
-                            disabled={addingSkill === remote.id || previewingSkillId === remote.id}
-                          >
-                            {addingSkill === remote.id ? 'Adding...' : 'Add'}
-                          </button>
-                        </>
+                            <div className="item-info">
+                              <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {remote.name}
+                                {remote.installed && (
+                                  <span className="status-badge success">In Plugin</span>
+                                )}
+                              </h4>
+                              <p>{remote.description}</p>
+                            </div>
+                            <div className="item-actions">
+                              {remote.installed ? (
+                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                                  Already in plugin
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    className="btn btn-sm btn-secondary"
+                                    onClick={() => handlePreviewRemote(remote)}
+                                    disabled={previewingSkillId === remote.id || addingSkill === remote.id}
+                                  >
+                                    {previewingSkillId === remote.id ? 'Loading...' : 'Preview'}
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-primary"
+                                    onClick={() => handleAddFromSource(remote)}
+                                    disabled={addingSkill === remote.id || previewingSkillId === remote.id}
+                                  >
+                                    {addingSkill === remote.id ? 'Adding...' : 'Add'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ))
                       )}
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          disabled={page <= 1}
+                          onClick={() => setBrowsePage(page - 1)}
+                        >
+                          Prev
+                        </button>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                          Page {page} of {totalPages}
+                        </span>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          disabled={page >= totalPages}
+                          onClick={() => setBrowsePage(page + 1)}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </>
           )}
 
           {!selectedSource && enabledSources.length > 0 && (
