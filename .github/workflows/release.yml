@@ -132,6 +132,12 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Apple Silicon target (macOS universal)
+        if: matrix.target == 'universal-apple-darwin'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -155,15 +161,15 @@ jobs:
 
       - name: Build GUI
         working-directory: ./gui
-        run: pnpm tauri build
+        run: pnpm tauri build --target ${{ matrix.target }}
 
       - name: Upload GUI artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          for file in gui/src-tauri/target/release/bundle/appimage/*.AppImage; do
+          for file in gui/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage; do
             gh release upload ${{ github.ref_name }} "$file"
           done
-          for file in gui/src-tauri/target/release/bundle/deb/*.deb; do
+          for file in gui/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb; do
             gh release upload ${{ github.ref_name }} "$file"
           done
         env:
@@ -172,7 +178,7 @@ jobs:
       - name: Upload GUI artifacts (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          for file in gui/src-tauri/target/release/bundle/dmg/*.dmg; do
+          for file in gui/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
             gh release upload ${{ github.ref_name }} "$file"
           done
         env:
@@ -181,7 +187,7 @@ jobs:
       - name: Upload GUI artifacts (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          Get-ChildItem gui/src-tauri/target/release/bundle/msi/*.msi | ForEach-Object {
+          Get-ChildItem gui/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi | ForEach-Object {
             gh release upload ${{ github.ref_name }} $_.FullName
           }
         env:
