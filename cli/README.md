@@ -31,12 +31,14 @@ graph LR
 
 ## Installation
 
-### Via Homebrew (Recommended)
+### Via Homebrew
 
 ```bash
-brew tap rhinolabs/tap
+brew tap <owner>/tap
 brew install rhinolabs-ai
 ```
+
+> **Note**: Requires the Homebrew tap to be configured. See the main [README](../README.md) for alternative installation methods.
 
 ### Via Cargo
 

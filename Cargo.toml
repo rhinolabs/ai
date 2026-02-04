@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Rhinolabs <devops@rhinolabs.com>"]
 license = "PROPRIETARY"
-repository = "https://github.com/rhinolabs/rhinolabs-ai"
+repository = ""
 
 [workspace.dependencies]
 # Shared dependencies across workspace

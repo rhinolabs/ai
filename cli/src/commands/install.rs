@@ -52,7 +52,7 @@ pub async fn run(local_path: Option<String>, dry_run: bool) -> Result<()> {
     println!("  1. Restart Claude Code");
     println!("  2. Run: rhinolabs status");
     println!();
-    Ui::info("Documentation: https://github.com/rhinolabs/rhinolabs-ai");
+    Ui::info("Documentation: rhinolabs-ai status");
 
     Ok(())
 }

@@ -167,17 +167,30 @@ When creating a profile with skills, the instructions template is automatically 
 ### For Team Developers
 
 ```bash
-# 1. Install CLI via Homebrew
-brew tap rhinolabs/tap
-brew install rhinolabs-ai
+# Option 1: Download from releases
+# Go to the Releases page and download the binary for your platform
 
-# 2. Run any command (auto-syncs configuration on first run)
+# Option 2: Build from source
+git clone <repo-url>
+cd rhinolabs-ai/cli
+cargo build --release
+# Binary at: target/release/rhinolabs-ai
+
+# Option 3: Homebrew (requires tap to be configured)
+# brew tap <owner>/tap
+# brew install rhinolabs-ai
+```
+
+Once installed:
+
+```bash
+# 1. Run any command (auto-syncs configuration on first run)
 rhinolabs-ai profile list
 
-# 3. Install Main-Profile (user-level, applies to all projects)
+# 2. Install Main-Profile (user-level, applies to all projects)
 # (Prompted automatically on first sync)
 
-# 4. Install project-specific profile
+# 3. Install project-specific profile
 cd ~/your-project
 rhinolabs-ai profile install react-stack
 ```
@@ -195,7 +208,7 @@ flowchart LR
     style E fill:#38a169,stroke:#68d391,color:#fff
 ```
 
-1. Download and install the GUI from [Releases](https://github.com/rhinolabs/rhinolabs-ai/releases)
+1. Download and install the GUI from the [Releases](../../releases) page
 2. Configure GitHub repository in **Project Settings**
 3. Create profiles and assign skills
 4. Click **Deploy** to publish configuration
@@ -486,7 +499,7 @@ cd gui/tests && pnpm test
 
 ## Support
 
-- Issues: [GitHub Issues](https://github.com/rhinolabs/rhinolabs-ai/issues)
+- Issues: [GitHub Issues](../../issues)
 - Internal: Contact DevOps team
 
 ## License
@@ -496,4 +509,4 @@ Proprietary - Rhinolabs Internal Use Only
 ---
 
 **Version**: 0.1.0
-**Last Updated**: 2026-01-29
+**Last Updated**: 2026-02-05

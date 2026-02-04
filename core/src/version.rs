@@ -1,4 +1,4 @@
-use crate::{Result, RhinolabsError};
+use crate::{Project, Result, RhinolabsError};
 use semver::Version as SemVersion;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -38,13 +38,29 @@ impl Version {
         Ok(())
     }
 
+    /// Build GitHub API releases URL from project config
+    fn releases_api_url() -> Result<String> {
+        let config = Project::get_config()?;
+
+        if config.github.owner.is_empty() || config.github.repo.is_empty() {
+            return Err(RhinolabsError::ConfigError(
+                "GitHub repository not configured. Run the GUI to set owner/repo first.".into(),
+            ));
+        }
+
+        Ok(format!(
+            "https://api.github.com/repos/{}/{}/releases/latest",
+            config.github.owner, config.github.repo
+        ))
+    }
+
     /// Check if update is available
     pub async fn check_update() -> Result<Option<String>> {
-        let url = "https://api.github.com/repos/rhinolabs/rhinolabs-ai/releases/latest";
+        let url = Self::releases_api_url()?;
 
         let client = reqwest::Client::new();
         let response = client
-            .get(url)
+            .get(&url)
             .header("User-Agent", "rhinolabs-cli")
             .send()
             .await?;
@@ -76,11 +92,11 @@ impl Version {
 
     /// Get download URL for latest release
     pub async fn get_latest_download_url() -> Result<String> {
-        let url = "https://api.github.com/repos/rhinolabs/rhinolabs-ai/releases/latest";
+        let url = Self::releases_api_url()?;
 
         let client = reqwest::Client::new();
         let response = client
-            .get(url)
+            .get(&url)
             .header("User-Agent", "rhinolabs-cli")
             .send()
             .await?;
@@ -166,11 +182,11 @@ mod tests {
             "assets": [
                 {
                     "name": "rhinolabs-claude.zip",
-                    "browser_download_url": "https://github.com/rhinolabs/rhinolabs-ai/releases/download/v1.2.3/rhinolabs-claude.zip"
+                    "browser_download_url": "https://example.com/releases/download/v1.2.3/rhinolabs-claude.zip"
                 },
                 {
-                    "name": "rhinolabs-linux-x64",
-                    "browser_download_url": "https://github.com/rhinolabs/rhinolabs-ai/releases/download/v1.2.3/rhinolabs-linux-x64"
+                    "name": "rhinolabs-ai-linux-x64",
+                    "browser_download_url": "https://example.com/releases/download/v1.2.3/rhinolabs-ai-linux-x64"
                 }
             ]
         }"#;
@@ -262,6 +278,14 @@ mod tests {
         let loaded: Version = serde_json::from_str(&loaded_content).unwrap();
 
         assert_eq!(loaded.version, original.version);
+    }
+
+    #[test]
+    fn test_releases_api_url_fails_without_config() {
+        // Without project config, releases_api_url should return an error
+        // because owner/repo are empty by default
+        let result = Version::releases_api_url();
+        assert!(result.is_err());
     }
 
     #[test]

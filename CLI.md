@@ -6,31 +6,31 @@ Command-line tool for managing the Rhinolabs Claude plugin.
 
 ### Download Binary
 
-Download the latest release for your platform:
+Download the latest release for your platform from the [Releases](../../releases/latest) page.
 
 **macOS (Intel)**:
 ```bash
-curl -L https://github.com/rhinolabs/rhinolabs-ai/releases/latest/download/rhinolabs-darwin-x64 -o rhinolabs
-chmod +x rhinolabs
-sudo mv rhinolabs /usr/local/bin/
+curl -fsSL <releases-url>/download/<version>/rhinolabs-ai-darwin-x64 -o rhinolabs-ai
+chmod +x rhinolabs-ai
+sudo mv rhinolabs-ai /usr/local/bin/
 ```
 
 **macOS (Apple Silicon)**:
 ```bash
-curl -L https://github.com/rhinolabs/rhinolabs-ai/releases/latest/download/rhinolabs-darwin-arm64 -o rhinolabs
-chmod +x rhinolabs
-sudo mv rhinolabs /usr/local/bin/
+curl -fsSL <releases-url>/download/<version>/rhinolabs-ai-darwin-arm64 -o rhinolabs-ai
+chmod +x rhinolabs-ai
+sudo mv rhinolabs-ai /usr/local/bin/
 ```
 
 **Linux (x64)**:
 ```bash
-curl -L https://github.com/rhinolabs/rhinolabs-ai/releases/latest/download/rhinolabs-linux-x64 -o rhinolabs
-chmod +x rhinolabs
-sudo mv rhinolabs /usr/local/bin/
+curl -fsSL <releases-url>/download/<version>/rhinolabs-ai-linux-x64 -o rhinolabs-ai
+chmod +x rhinolabs-ai
+sudo mv rhinolabs-ai /usr/local/bin/
 ```
 
 **Windows**:
-Download `rhinolabs-windows-x64.exe` from [releases](https://github.com/rhinolabs/rhinolabs-ai/releases/latest) and add to PATH.
+Download `rhinolabs-ai-windows-x64.exe` from the [Releases](../../releases/latest) page and add to PATH.
 
 ---
 
@@ -212,13 +212,13 @@ rhinolabs version
 
 ```bash
 # Clone repository
-git clone https://github.com/rhinolabs/rhinolabs-ai.git
+git clone <your-repo-url>/rhinolabs-ai.git
 cd rhinolabs-ai
 
 # Build CLI
-cargo build --release --bin rhinolabs
+cargo build --release --bin rhinolabs-ai
 
-# Binary will be at: target/release/rhinolabs
+# Binary will be at: target/release/rhinolabs-ai
 ```
 
 ### Install Locally
@@ -272,8 +272,8 @@ chmod +x rhinolabs
 
 ## Support
 
-- **Documentation**: https://github.com/rhinolabs/rhinolabs-ai
-- **Issues**: https://github.com/rhinolabs/rhinolabs-ai/issues
+- **Documentation**: See [README](./README.md)
+- **Issues**: [GitHub Issues](../../issues)
 - **Internal**: Contact DevOps team
 
 ---

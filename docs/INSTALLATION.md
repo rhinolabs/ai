@@ -26,7 +26,7 @@ Before installing the plugin, ensure you have:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/rhinolabs/rhinolabs-ai.git
+   git clone <your-repo-url>/rhinolabs-ai.git
    cd rhinolabs-ai
    ```
 
@@ -59,7 +59,7 @@ Before installing the plugin, ensure you have:
 
 1. **Clone the repository**
    ```powershell
-   git clone https://github.com/rhinolabs/rhinolabs-ai.git
+   git clone <your-repo-url>/rhinolabs-ai.git
    cd rhinolabs-ai
    ```
 
