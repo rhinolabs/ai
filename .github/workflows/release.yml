@@ -132,10 +132,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
 
-      - name: Install Apple Silicon target (macOS universal)
+      - name: Install Rust targets (macOS universal)
         if: matrix.target == 'universal-apple-darwin'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
