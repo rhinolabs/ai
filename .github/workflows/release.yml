@@ -119,11 +119,12 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            bundle_path: gui/src-tauri/target/release/bundle
           - os: macos-latest
-            target: universal-apple-darwin
+            tauri_target: universal-apple-darwin
+            bundle_path: gui/src-tauri/target/universal-apple-darwin/release/bundle
           - os: windows-latest
-            target: x86_64-pc-windows-msvc
+            bundle_path: gui/src-tauri/target/release/bundle
 
     runs-on: ${{ matrix.os }}
 
@@ -134,7 +135,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Rust targets (macOS universal)
-        if: matrix.target == 'universal-apple-darwin'
+        if: matrix.tauri_target == 'universal-apple-darwin'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
       - name: Install pnpm
@@ -159,15 +160,15 @@ jobs:
 
       - name: Build GUI
         working-directory: ./gui
-        run: pnpm tauri build --target ${{ matrix.target }}
+        run: pnpm tauri build ${{ matrix.tauri_target && format('--target {0}', matrix.tauri_target) || '' }}
 
       - name: Upload GUI artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          for file in gui/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage; do
+          for file in ${{ matrix.bundle_path }}/appimage/*.AppImage; do
             gh release upload ${{ github.ref_name }} "$file"
           done
-          for file in gui/src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb; do
+          for file in ${{ matrix.bundle_path }}/deb/*.deb; do
             gh release upload ${{ github.ref_name }} "$file"
           done
         env:
@@ -176,7 +177,7 @@ jobs:
       - name: Upload GUI artifacts (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          for file in gui/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg; do
+          for file in ${{ matrix.bundle_path }}/dmg/*.dmg; do
             gh release upload ${{ github.ref_name }} "$file"
           done
         env:
@@ -185,7 +186,7 @@ jobs:
       - name: Upload GUI artifacts (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          Get-ChildItem gui/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi | ForEach-Object {
+          Get-ChildItem ${{ matrix.bundle_path }}/msi/*.msi | ForEach-Object {
             gh release upload ${{ github.ref_name }} $_.FullName
           }
         env:
