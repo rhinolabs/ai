@@ -162,32 +162,55 @@ jobs:
         working-directory: ./gui
         run: pnpm tauri build ${{ matrix.tauri_target && format('--target {0}', matrix.tauri_target) || '' }}
 
+      - name: List bundle output (debug)
+        shell: bash
+        run: |
+          echo "Looking for bundles in: ${{ matrix.bundle_path }}"
+          find ${{ matrix.bundle_path }} -type f 2>/dev/null || echo "Bundle path not found"
+
       - name: Upload GUI artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          for file in ${{ matrix.bundle_path }}/appimage/*.AppImage; do
+          shopt -s nullglob
+          appimages=(${{ matrix.bundle_path }}/appimage/*.AppImage)
+          debs=(${{ matrix.bundle_path }}/deb/*.deb)
+          for file in "${appimages[@]}"; do
             gh release upload ${{ github.ref_name }} "$file"
           done
-          for file in ${{ matrix.bundle_path }}/deb/*.deb; do
+          for file in "${debs[@]}"; do
             gh release upload ${{ github.ref_name }} "$file"
           done
+          if [ ${#appimages[@]} -eq 0 ] && [ ${#debs[@]} -eq 0 ]; then
+            echo "::warning::No Linux GUI artifacts found"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload GUI artifacts (macOS)
         if: matrix.os == 'macos-latest'
         run: |
-          for file in ${{ matrix.bundle_path }}/dmg/*.dmg; do
+          shopt -s nullglob
+          dmgs=(${{ matrix.bundle_path }}/dmg/*.dmg)
+          for file in "${dmgs[@]}"; do
             gh release upload ${{ github.ref_name }} "$file"
           done
+          if [ ${#dmgs[@]} -eq 0 ]; then
+            echo "::warning::No macOS GUI artifacts found"
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload GUI artifacts (Windows)
         if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          Get-ChildItem ${{ matrix.bundle_path }}/msi/*.msi | ForEach-Object {
-            gh release upload ${{ github.ref_name }} $_.FullName
+          $msis = Get-ChildItem "${{ matrix.bundle_path }}\msi\*.msi" -ErrorAction SilentlyContinue
+          if ($msis) {
+            foreach ($file in $msis) {
+              gh release upload ${{ github.ref_name }} "$($file.FullName)"
+            }
+          } else {
+            Write-Host "::warning::No Windows GUI artifacts found"
           }
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
