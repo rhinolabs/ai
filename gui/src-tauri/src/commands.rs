@@ -805,23 +805,34 @@ pub fn set_default_user_profile(profile_id: String) -> Result<(), String> {
 pub fn install_profile(
     profile_id: String,
     target_path: Option<String>,
+    targets: Option<Vec<String>>,
 ) -> Result<ProfileInstallResult, String> {
     let path = target_path.as_deref().map(std::path::Path::new);
-    Profiles::install(&profile_id, path).map_err(|e| e.to_string())
+    let deploy_targets: Option<Vec<rhinolabs_core::DeployTarget>> =
+        targets.map(|t| t.iter().filter_map(|s| s.parse().ok()).collect());
+    let targets_ref = deploy_targets.as_deref();
+    Profiles::install(&profile_id, path, targets_ref).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn update_installed_profile(
     profile_id: String,
     target_path: Option<String>,
+    targets: Option<Vec<String>>,
 ) -> Result<ProfileInstallResult, String> {
     let path = target_path.as_deref().map(std::path::Path::new);
-    Profiles::update_installed(&profile_id, path).map_err(|e| e.to_string())
+    let deploy_targets: Option<Vec<rhinolabs_core::DeployTarget>> =
+        targets.map(|t| t.iter().filter_map(|s| s.parse().ok()).collect());
+    let targets_ref = deploy_targets.as_deref();
+    Profiles::update_installed(&profile_id, path, targets_ref).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub fn uninstall_profile(target_path: String) -> Result<(), String> {
-    Profiles::uninstall(std::path::Path::new(&target_path)).map_err(|e| e.to_string())
+pub fn uninstall_profile(target_path: String, targets: Option<Vec<String>>) -> Result<(), String> {
+    let deploy_targets: Option<Vec<rhinolabs_core::DeployTarget>> =
+        targets.map(|t| t.iter().filter_map(|s| s.parse().ok()).collect());
+    let targets_ref = deploy_targets.as_deref();
+    Profiles::uninstall(std::path::Path::new(&target_path), targets_ref).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

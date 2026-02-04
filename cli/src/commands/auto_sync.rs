@@ -198,7 +198,7 @@ async fn check_and_install_main_profile() -> Result<()> {
         println!();
         println!("Installing Main-Profile...");
 
-        match Profiles::install("main", None) {
+        match Profiles::install("main", None, None) {
             Ok(result) => {
                 println!();
                 println!("{} Main-Profile installed to ~/.claude/", "✓".green());

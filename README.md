@@ -1,16 +1,17 @@
 # Rhinolabs AI
 
-Enterprise-grade plugin and configuration management system for Claude Code.
+Enterprise-grade skill, profile, and configuration management for AI coding assistants. Supports deploying to Claude Code, Amp, Antigravity, and OpenCode.
 
 ## Overview
 
-Rhinolabs AI provides a complete solution for standardizing Claude Code across development teams:
+Rhinolabs AI provides a complete solution for standardizing AI coding assistants across development teams:
 
 - **Plugin**: Curated skills for consistent coding standards
 - **CLI**: Command-line tool for profile installation and team sync
 - **GUI**: Desktop application for plugin management (lead developers)
 - **Profiles**: Organize skills into reusable bundles (user-level and project-level)
 - **Deploy/Sync**: Distribute configurations across your team via GitHub releases
+- **Multi-Target**: Deploy skills and instructions to Claude Code, Amp, Antigravity, and OpenCode via `--target` flag
 
 ## System Architecture
 
@@ -210,10 +211,15 @@ rhinolabs-ai sync                    # Manual sync from GitHub
 # Profile management
 rhinolabs-ai profile list            # List all profiles
 rhinolabs-ai profile show <id>       # Show profile details
-rhinolabs-ai profile install <name>  # Install profile (current directory)
-rhinolabs-ai profile install <name> -P /path  # Install to specific path
+rhinolabs-ai profile install <name>  # Install profile (default: Claude Code)
+rhinolabs-ai profile install <name> -t amp          # Install for Amp
+rhinolabs-ai profile install <name> -t amp -t claude-code  # Multiple targets
+rhinolabs-ai profile install <name> -t all          # All targets
+rhinolabs-ai profile install <name> -P /path        # Install to specific path
 rhinolabs-ai profile update          # Update installed profile
+rhinolabs-ai profile update -t amp   # Update for specific target
 rhinolabs-ai profile uninstall       # Remove profile from current directory
+rhinolabs-ai profile uninstall -t amp  # Uninstall only Amp artifacts
 
 # Plugin management
 rhinolabs-ai install                 # Install base plugin

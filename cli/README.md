@@ -71,9 +71,9 @@ graph TB
 
     PROFILE --> P_LIST[list]
     PROFILE --> P_SHOW[show]
-    PROFILE --> P_INST[install]
-    PROFILE --> P_UPD[update]
-    PROFILE --> P_UNINST[uninstall]
+    PROFILE --> P_INST["install [--target]"]
+    PROFILE --> P_UPD["update [--target]"]
+    PROFILE --> P_UNINST["uninstall [--target]"]
 
     SKILL --> S_LIST[list]
     SKILL --> S_SHOW[show]
@@ -156,8 +156,17 @@ rhinolabs-ai profile list
 # Show profile details
 rhinolabs-ai profile show <profile-id>
 
-# Install profile to current directory
+# Install profile to current directory (default target: Claude Code)
 rhinolabs-ai profile install <profile-name>
+
+# Install profile for a specific target
+rhinolabs-ai profile install <profile-name> --target amp
+
+# Install for multiple targets
+rhinolabs-ai profile install <profile-name> -t amp -t claude-code
+
+# Install for all supported targets
+rhinolabs-ai profile install <profile-name> --target all
 
 # Install profile to specific path
 rhinolabs-ai profile install <profile-name> -P /path/to/project
@@ -165,15 +174,27 @@ rhinolabs-ai profile install <profile-name> -P /path/to/project
 # Update installed profile (detects profile automatically)
 rhinolabs-ai profile update
 
-# Update specific profile
-rhinolabs-ai profile update <profile-name>
+# Update specific profile for a target
+rhinolabs-ai profile update <profile-name> --target amp
 
 # Uninstall profile from current directory
 rhinolabs-ai profile uninstall
 
+# Uninstall only specific target artifacts
+rhinolabs-ai profile uninstall --target amp
+
 # Uninstall from specific path
 rhinolabs-ai profile uninstall -P /path/to/project
 ```
+
+**Supported targets**: `claude-code` (default), `amp`, `antigravity`, `open-code`, `all`
+
+| Target | Skills Dir | Instructions File | Config Dir |
+|--------|-----------|-------------------|------------|
+| `claude-code` | `.claude/skills/` | `CLAUDE.md` | `.claude/` |
+| `amp` | `.agents/skills/` | `AGENTS.md` | `.agents/` |
+| `antigravity` | `.agent/skills/` | `GEMINI.md` | `.agent/` |
+| `open-code` | `.opencode/skills/` | `opencode.json` | `.opencode/` |
 
 ### Skill Management
 

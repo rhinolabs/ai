@@ -1,10 +1,21 @@
 use crate::ui::Ui;
 use anyhow::Result;
 use colored::Colorize;
-use rhinolabs_core::{ProfileType, Profiles};
+use rhinolabs_core::{DeployTarget, ProfileType, Profiles};
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
+
+/// Parse target strings into DeployTarget vec.
+/// Handles "all" keyword and individual target names.
+fn parse_targets(strs: &[String]) -> Result<Vec<DeployTarget>> {
+    if strs.iter().any(|s| s == "all") {
+        return Ok(DeployTarget::all().to_vec());
+    }
+    strs.iter()
+        .map(|s| s.parse::<DeployTarget>().map_err(|e| anyhow::anyhow!(e)))
+        .collect()
+}
 
 /// Detect installed profile from .claude-plugin/plugin.json
 fn detect_installed_profile(path: &Path) -> Option<(String, String)> {
@@ -40,6 +51,15 @@ fn prompt_yes_no(prompt: &str, default_yes: bool) -> bool {
     }
 
     matches!(input.as_str(), "y" | "yes" | "si" | "sí")
+}
+
+/// Format target list for display
+fn format_targets(targets: &[DeployTarget]) -> String {
+    targets
+        .iter()
+        .map(|t| t.display_name())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// List all profiles
@@ -106,6 +126,7 @@ pub fn show(profile_id: &str) -> Result<()> {
             println!("  Name:        {}", profile.name);
             println!("  Type:        {}", type_str);
             println!("  Description: {}", profile.description);
+            println!("  Targets:     {}", format_targets(DeployTarget::all()));
             println!("  Created:     {}", profile.created_at);
             println!("  Updated:     {}", profile.updated_at);
             println!();
@@ -130,14 +151,37 @@ pub fn show(profile_id: &str) -> Result<()> {
 }
 
 /// Install a profile to a target path
-pub fn install(profile_id: &str, target_path: Option<String>) -> Result<()> {
+pub fn install(
+    profile_id: &str,
+    target_path: Option<String>,
+    target_strs: Vec<String>,
+) -> Result<()> {
     Ui::header("Installing Profile");
+
+    let targets = parse_targets(&target_strs)?;
+    let targets_ref = if targets.is_empty() {
+        None
+    } else {
+        Some(targets.as_slice())
+    };
 
     let profile = Profiles::get(profile_id)?;
 
     match profile {
         Some(profile) => {
             Ui::step(&format!("Profile: {} ({})", profile.name, profile.id));
+
+            // Show which targets will be used
+            let effective_targets = targets_ref.unwrap_or(&[DeployTarget::ClaudeCode]);
+            if effective_targets.len() > 1
+                || effective_targets.first() != Some(&DeployTarget::ClaudeCode)
+            {
+                println!(
+                    "  {} Targets: {}",
+                    "→".cyan(),
+                    format_targets(effective_targets).bold()
+                );
+            }
 
             // For Project profiles: use current directory if no path specified
             let effective_path = if profile.profile_type == ProfileType::Project {
@@ -148,16 +192,23 @@ pub fn install(profile_id: &str, target_path: Option<String>) -> Result<()> {
                 let path_display = path.display().to_string();
                 println!();
                 println!(
-                    "  {} Profile '{}' will be installed as a plugin in:",
+                    "  {} Profile '{}' will be installed in:",
                     "→".cyan(),
                     profile.name
                 );
                 println!("    {}", path_display.bold());
                 println!();
                 println!("  This will create:");
-                println!("    • .claude-plugin/plugin.json");
-                println!("    • .claude/skills/ ({} skills)", profile.skills.len());
-                println!("    • CLAUDE.md");
+
+                for target in effective_targets {
+                    let prefix = target.project_skills_prefix();
+                    println!("    {}:", target.display_name().bold());
+                    println!("      • {}/  ({} skills)", prefix, profile.skills.len());
+                    println!("      • {}", target.instructions_filename());
+                    if *target == DeployTarget::ClaudeCode {
+                        println!("      • .claude-plugin/plugin.json");
+                    }
+                }
                 println!();
 
                 if !prompt_yes_no("Continue?", true) {
@@ -170,7 +221,9 @@ pub fn install(profile_id: &str, target_path: Option<String>) -> Result<()> {
             } else {
                 // User profile - path is ignored, installs to ~/.claude/
                 if target_path.is_some() {
-                    Ui::warning("User profiles ignore --path and install to ~/.claude/");
+                    Ui::warning(
+                        "User profiles ignore --path and install to user config directories.",
+                    );
                 }
                 None
             };
@@ -184,17 +237,22 @@ pub fn install(profile_id: &str, target_path: Option<String>) -> Result<()> {
             Ui::step(&format!("Installing {} skills...", profile.skills.len()));
 
             let path = effective_path.as_deref();
-            let result = Profiles::install(profile_id, path)?;
+            let result = Profiles::install(profile_id, path, targets_ref)?;
 
             println!();
             Ui::success(&format!("Installed to: {}", result.target_path));
 
-            // Show what was created based on profile type
+            // Show what was created per target
             if profile.profile_type == ProfileType::Project {
-                Ui::section("Plugin Structure Created");
-                println!("  {} .claude-plugin/plugin.json", "✓".green());
-                println!("  {} .claude/skills/", "✓".green());
-                println!("  {} CLAUDE.md", "✓".green());
+                Ui::section("Structure Created");
+                for target in &result.targets_installed {
+                    println!("  {}:", target.display_name().bold());
+                    println!("    {} {}/", "✓".green(), target.project_skills_prefix());
+                    println!("    {} {}", "✓".green(), target.instructions_filename());
+                    if *target == DeployTarget::ClaudeCode {
+                        println!("    {} .claude-plugin/plugin.json", "✓".green());
+                    }
+                }
             }
 
             if !result.skills_installed.is_empty() {
@@ -213,10 +271,10 @@ pub fn install(profile_id: &str, target_path: Option<String>) -> Result<()> {
 
             println!();
             if profile.profile_type == ProfileType::Project {
-                Ui::info("Profile installed as a project plugin.");
-                Ui::info("Claude Code will automatically load it when working in this directory.");
+                let target_names = format_targets(&result.targets_installed);
+                Ui::info(&format!("Profile installed for: {}.", target_names));
             } else {
-                Ui::info("Claude Code will automatically load skills from this location.");
+                Ui::info("Skills installed to user config directories.");
             }
         }
         None => {
@@ -229,8 +287,19 @@ pub fn install(profile_id: &str, target_path: Option<String>) -> Result<()> {
 }
 
 /// Update installed profile (re-install with latest skill versions)
-pub fn update(profile_id: Option<String>, target_path: Option<String>) -> Result<()> {
+pub fn update(
+    profile_id: Option<String>,
+    target_path: Option<String>,
+    target_strs: Vec<String>,
+) -> Result<()> {
     Ui::header("Updating Profile");
+
+    let targets = parse_targets(&target_strs)?;
+    let targets_ref = if targets.is_empty() {
+        None
+    } else {
+        Some(targets.as_slice())
+    };
 
     // Determine target path (default to current directory)
     let target = target_path
@@ -265,6 +334,10 @@ pub fn update(profile_id: Option<String>, target_path: Option<String>) -> Result
                 profile.name
             );
             println!("    {}", path_display.bold());
+
+            if let Some(t) = targets_ref {
+                println!("  {} Targets: {}", "→".cyan(), format_targets(t).bold());
+            }
             println!();
 
             if !prompt_yes_no("Continue?", true) {
@@ -275,7 +348,8 @@ pub fn update(profile_id: Option<String>, target_path: Option<String>) -> Result
 
             Ui::step("Updating skills to latest versions...");
 
-            let result = Profiles::update_installed(&effective_profile_id, Some(&target))?;
+            let result =
+                Profiles::update_installed(&effective_profile_id, Some(&target), targets_ref)?;
 
             println!();
             Ui::success("Profile updated!");
@@ -302,8 +376,15 @@ pub fn update(profile_id: Option<String>, target_path: Option<String>) -> Result
 }
 
 /// Uninstall profile from a target path
-pub fn uninstall(target_path: Option<String>) -> Result<()> {
+pub fn uninstall(target_path: Option<String>, target_strs: Vec<String>) -> Result<()> {
     Ui::header("Uninstalling Profile");
+
+    let targets = parse_targets(&target_strs)?;
+    let targets_ref = if targets.is_empty() {
+        None
+    } else {
+        Some(targets.as_slice())
+    };
 
     // Use current directory if no path specified
     let path = target_path
@@ -326,6 +407,10 @@ pub fn uninstall(target_path: Option<String>) -> Result<()> {
         println!("  {} Profile will be uninstalled from:", "→".cyan());
     }
     println!("    {}", path_display.bold());
+
+    if let Some(t) = targets_ref {
+        println!("  {} Targets: {}", "→".cyan(), format_targets(t).bold());
+    }
     println!();
 
     if !path.exists() {
@@ -333,22 +418,46 @@ pub fn uninstall(target_path: Option<String>) -> Result<()> {
         return Ok(());
     }
 
-    let claude_dir = path.join(".claude");
-    let plugin_dir = path.join(".claude-plugin");
+    // Check what exists for display
+    let effective_targets = targets_ref.unwrap_or_else(|| DeployTarget::all());
+    let mut has_anything = false;
 
-    if !claude_dir.exists() && !plugin_dir.exists() {
+    println!("  This will remove:");
+    for target in effective_targets {
+        let config_dir = path.join(match target {
+            DeployTarget::ClaudeCode => ".claude",
+            DeployTarget::Amp => ".agents",
+            DeployTarget::Antigravity => ".agent",
+            DeployTarget::OpenCode => ".opencode",
+        });
+        if config_dir.exists() {
+            println!(
+                "    • {}/ (skills)",
+                config_dir.file_name().unwrap().to_string_lossy()
+            );
+            has_anything = true;
+        }
+        let instructions_file = path.join(target.instructions_filename());
+        if instructions_file.exists() {
+            println!(
+                "    • {} (if generated by rhinolabs-ai)",
+                target.instructions_filename()
+            );
+            has_anything = true;
+        }
+        if *target == DeployTarget::ClaudeCode {
+            let plugin_dir = path.join(".claude-plugin");
+            if plugin_dir.exists() {
+                println!("    • .claude-plugin/ (plugin manifest)");
+                has_anything = true;
+            }
+        }
+    }
+
+    if !has_anything {
         Ui::warning("No profile installation found at this location.");
         return Ok(());
     }
-
-    println!("  This will remove:");
-    if claude_dir.exists() {
-        println!("    • .claude/ (skills)");
-    }
-    if plugin_dir.exists() {
-        println!("    • .claude-plugin/ (plugin manifest)");
-    }
-    println!("    • CLAUDE.md (if generated by rhinolabs-ai)");
     println!();
 
     if !prompt_yes_no("Continue?", false) {
@@ -357,9 +466,120 @@ pub fn uninstall(target_path: Option<String>) -> Result<()> {
     }
     println!();
 
-    Profiles::uninstall(&path)?;
+    Profiles::uninstall(&path, targets_ref)?;
 
     Ui::success("Profile uninstalled!");
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rhinolabs_core::DeployTarget;
+
+    #[test]
+    fn test_parse_targets_empty_returns_empty() {
+        let input: Vec<String> = vec![];
+        let result = parse_targets(&input).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_parse_targets_single_valid_target() {
+        let input = vec!["amp".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], DeployTarget::Amp);
+    }
+
+    #[test]
+    fn test_parse_targets_multiple_valid_targets() {
+        let input = vec!["claude-code".to_string(), "amp".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], DeployTarget::ClaudeCode);
+        assert_eq!(result[1], DeployTarget::Amp);
+    }
+
+    #[test]
+    fn test_parse_targets_all_returns_all_four() {
+        let input = vec!["all".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result.len(), 4);
+        assert!(result.contains(&DeployTarget::ClaudeCode));
+        assert!(result.contains(&DeployTarget::Amp));
+        assert!(result.contains(&DeployTarget::Antigravity));
+        assert!(result.contains(&DeployTarget::OpenCode));
+    }
+
+    #[test]
+    fn test_parse_targets_all_ignores_other_entries() {
+        // "all" overrides everything else in the list
+        let input = vec!["amp".to_string(), "all".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result.len(), 4);
+    }
+
+    #[test]
+    fn test_parse_targets_invalid_target_returns_error() {
+        let input = vec!["vscode".to_string()];
+        let result = parse_targets(&input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_targets_mixed_valid_invalid_returns_error() {
+        let input = vec!["amp".to_string(), "invalid-target".to_string()];
+        let result = parse_targets(&input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_targets_alias_claude() {
+        let input = vec!["claude".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result[0], DeployTarget::ClaudeCode);
+    }
+
+    #[test]
+    fn test_parse_targets_alias_gemini() {
+        let input = vec!["gemini".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result[0], DeployTarget::Antigravity);
+    }
+
+    #[test]
+    fn test_parse_targets_alias_opencode() {
+        let input = vec!["opencode".to_string()];
+        let result = parse_targets(&input).unwrap();
+        assert_eq!(result[0], DeployTarget::OpenCode);
+    }
+
+    #[test]
+    fn test_format_targets_single() {
+        let targets = vec![DeployTarget::Amp];
+        assert_eq!(format_targets(&targets), "Amp");
+    }
+
+    #[test]
+    fn test_format_targets_multiple() {
+        let targets = vec![DeployTarget::ClaudeCode, DeployTarget::Amp];
+        assert_eq!(format_targets(&targets), "Claude Code, Amp");
+    }
+
+    #[test]
+    fn test_format_targets_all() {
+        let targets = DeployTarget::all().to_vec();
+        assert_eq!(
+            format_targets(&targets),
+            "Claude Code, Amp, Antigravity, OpenCode"
+        );
+    }
+
+    #[test]
+    fn test_format_targets_empty() {
+        let targets: Vec<DeployTarget> = vec![];
+        assert_eq!(format_targets(&targets), "");
+    }
 }

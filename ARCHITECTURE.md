@@ -220,6 +220,32 @@ When `generate_agents` is enabled, AGENTS.md serves as the canonical source:
 - Can be version-controlled separately
 - Useful for teams using multiple AI tools
 
+### Deploy Target Abstraction Layer (`core/src/targets/`)
+
+The `targets` module provides a formal abstraction for deploying skills, instructions, and MCP configuration to multiple AI coding assistants. Each target has its own filesystem conventions:
+
+| Target | User Skills | Project Skills | Instructions | MCP Config |
+|--------|------------|----------------|-------------|------------|
+| Claude Code | `~/.claude/skills/` | `.claude/skills/` | `CLAUDE.md` | `.mcp.json` |
+| Amp | `~/.config/agents/skills/` | `.agents/skills/` | `AGENTS.md` | `settings.json` |
+| Antigravity | `~/.gemini/antigravity/skills/` | `.agent/skills/` | `GEMINI.md` | `config.json` |
+| OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` | `opencode.json` | `opencode.json` |
+
+**Architecture:**
+
+```
+DeployTarget (enum)          Traits                    Implementations
+┌──────────────┐    ┌─────────────────────┐    ┌─────────────────────┐
+│ ClaudeCode   │    │ SkillDeployer       │    │ ClaudeCodeDeployer  │
+│ Amp          │    │ InstructionsDeployer │◄───│ (all 4 traits)      │
+│ Antigravity  │    │ McpDeployer         │    ├─────────────────────┤
+│ OpenCode     │    │ TargetDetector      │    │ GenericDeployer     │
+└──────────────┘    └─────────────────────┘    │ (any target)        │
+                                               └─────────────────────┘
+```
+
+`ClaudeCodeDeployer` implements all 4 traits for Claude Code-specific behavior (MCP config, detection). `GenericDeployer` is parameterized by `DeployTarget` and implements `SkillDeployer` + `InstructionsDeployer` for any target — used by `Profiles::install()` for multi-target deployment via `--target` flag.
+
 ---
 
 ## Auto-invoke Rules
@@ -315,6 +341,8 @@ Claude Code automatically loads:
 - Project-level: `./.claude/CLAUDE.md`, `./.claude/skills/*`
 - Plugins: `<plugins-dir>/*/` with `.claude-plugin/plugin.json`
 
+> **Note:** These paths are formalized in `core/src/targets/target_paths.rs` via `TargetPaths::user_skills_dir(DeployTarget::ClaudeCode)` and related methods. See the [Deploy Target Abstraction Layer](#deploy-target-abstraction-layer-coresrctargets) section for the full multi-target path mapping.
+
 ---
 
 ## Profile Installation Flow
@@ -368,6 +396,7 @@ Shared Rust library used by CLI and GUI.
 - `paths.rs` - Cross-platform path resolution
 - `project.rs` - GitHub release management
 - `deploy.rs` - Configuration export, deploy & sync
+- `targets/` - Multi-target deployment abstraction (Claude Code, Amp, Antigravity, OpenCode)
 
 ### Building
 
@@ -638,5 +667,5 @@ act -j test --matrix os:ubuntu-latest -P ubuntu-latest=catthehacker/ubuntu:act-l
 
 ---
 
-**Last Updated**: 2026-01-29
-**Version**: 2.3.0
+**Last Updated**: 2026-02-04
+**Version**: 2.4.0

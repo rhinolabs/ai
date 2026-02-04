@@ -1,5 +1,6 @@
 use crate::{
-    InstructionsManager, OutputStyle, OutputStyles, Result, RhinolabsError, Settings, Skill, Skills,
+    targets::TargetPaths, DeployTarget, InstructionsManager, OutputStyle, OutputStyles, Result,
+    RhinolabsError, Settings, Skill, Skills,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -105,6 +106,7 @@ pub struct UpdateAutoInvokeInput {
 
 /// Generated content for multi-AI instruction files (internal use)
 struct GeneratedAiContent {
+    #[allow(dead_code)]
     claude_md: String,
     copilot_md: String,
     agents_md: String,
@@ -131,6 +133,9 @@ pub struct ProfileInstallResult {
     /// For Main-Profile: indicates if output style was installed
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_style_installed: Option<String>,
+    /// Which deploy targets were installed to
+    #[serde(default)]
+    pub targets_installed: Vec<DeployTarget>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,6 +215,21 @@ impl Profiles {
         profile_description: &str,
         skill_ids: &[String],
     ) -> String {
+        Self::generate_template_instructions_for_target(
+            profile_name,
+            profile_description,
+            skill_ids,
+            ".claude/skills",
+        )
+    }
+
+    /// Generate template instructions with a configurable skills prefix
+    fn generate_template_instructions_for_target(
+        profile_name: &str,
+        profile_description: &str,
+        skill_ids: &[String],
+        skills_prefix: &str,
+    ) -> String {
         // Build skills table rows
         let skills_table = if skill_ids.is_empty() {
             "| <!-- Add skills to this profile --> | | |".to_string()
@@ -225,13 +245,13 @@ impl Profiles {
                             skill.description.clone()
                         };
                         format!(
-                            "| {} | `{}` | `.claude/skills/{}/SKILL.md` |",
-                            context, skill.id, skill.id
+                            "| {} | `{}` | `{}/{}/SKILL.md` |",
+                            context, skill.id, skills_prefix, skill.id
                         )
                     } else {
                         format!(
-                            "| Working with {} | `{}` | `.claude/skills/{}/SKILL.md` |",
-                            skill_id, skill_id, skill_id
+                            "| Working with {} | `{}` | `{}/{}/SKILL.md` |",
+                            skill_id, skill_id, skills_prefix, skill_id
                         )
                     }
                 })
@@ -617,65 +637,89 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
     // ============================================
 
     /// Install a profile to a target path
-    /// For User profiles (Main-Profile): installs to ~/.claude/ including:
-    ///   - Skills → ~/.claude/skills/
+    /// For User profiles (Main-Profile): installs to ~/.claude/ (and other targets) including:
+    ///   - Skills → ~/.claude/skills/ (or target-specific user skills dir)
     ///   - Instructions → ~/.claude/CLAUDE.md
     ///   - Settings → ~/.claude/settings.json
     ///   - Output Style → ~/.claude/output-styles/
     ///
     /// For Project profiles: installs as a plugin to target_path/ including:
-    ///   - Plugin manifest → target_path/.claude-plugin/plugin.json
-    ///   - Skills → target_path/.claude/skills/
-    ///   - CLAUDE.md → target_path/CLAUDE.md (generated from profile)
-    pub fn install(profile_id: &str, target_path: Option<&Path>) -> Result<ProfileInstallResult> {
+    ///   - Plugin manifest → target_path/.claude-plugin/plugin.json (ClaudeCode only)
+    ///   - Skills → target_path/.claude/skills/ (or target-specific project skills dir)
+    ///   - CLAUDE.md/AGENTS.md/GEMINI.md → target_path/ (generated from profile)
+    ///
+    /// If `targets` is `None`, defaults to `[ClaudeCode]` for backward compatibility.
+    pub fn install(
+        profile_id: &str,
+        target_path: Option<&Path>,
+        targets: Option<&[DeployTarget]>,
+    ) -> Result<ProfileInstallResult> {
         let profile = Self::get(profile_id)?.ok_or_else(|| {
             RhinolabsError::ConfigError(format!("Profile '{}' not found", profile_id))
         })?;
 
-        let (base_target, claude_target, skills_target) = match profile.profile_type {
-            ProfileType::User => {
-                let claude_dir = Self::claude_user_dir()?;
-                (
-                    claude_dir.clone(),
-                    claude_dir.clone(),
-                    claude_dir.join("skills"),
-                )
-            }
-            ProfileType::Project => {
-                let path = target_path.ok_or_else(|| {
-                    RhinolabsError::ConfigError("Project profiles require a target path".into())
-                })?;
-                let base = path.to_path_buf();
-                let claude_dir = Self::claude_project_dir(path);
-                (base, claude_dir.clone(), claude_dir.join("skills"))
-            }
-        };
-
-        // Create target directory
-        fs::create_dir_all(&skills_target)?;
+        let default_targets = [DeployTarget::ClaudeCode];
+        let effective_targets = targets.unwrap_or(&default_targets);
 
         let mut skills_installed = Vec::new();
         let mut skills_failed = Vec::new();
 
-        // Copy each skill
-        for skill_id in &profile.skills {
-            match Self::install_skill(skill_id, &skills_target) {
-                Ok(_) => skills_installed.push(skill_id.clone()),
-                Err(e) => skills_failed.push(SkillInstallError {
-                    skill_id: skill_id.clone(),
-                    error: e.to_string(),
-                }),
+        // Install skills to each target
+        for target in effective_targets {
+            let skills_target = match profile.profile_type {
+                ProfileType::User => TargetPaths::user_skills_dir(*target)?,
+                ProfileType::Project => {
+                    let path = target_path.ok_or_else(|| {
+                        RhinolabsError::ConfigError("Project profiles require a target path".into())
+                    })?;
+                    TargetPaths::project_skills_dir(*target, path)
+                }
+            };
+
+            fs::create_dir_all(&skills_target)?;
+
+            for skill_id in &profile.skills {
+                match Self::install_skill(skill_id, &skills_target) {
+                    Ok(_) => {
+                        if !skills_installed.contains(skill_id) {
+                            skills_installed.push(skill_id.clone());
+                        }
+                    }
+                    Err(e) => {
+                        if !skills_failed
+                            .iter()
+                            .any(|f: &SkillInstallError| f.skill_id == *skill_id)
+                        {
+                            skills_failed.push(SkillInstallError {
+                                skill_id: skill_id.clone(),
+                                error: e.to_string(),
+                            });
+                        }
+                    }
+                }
             }
         }
 
+        // Determine base target path for result display
+        let base_target = match profile.profile_type {
+            ProfileType::User => Self::claude_user_dir()?,
+            ProfileType::Project => target_path
+                .ok_or_else(|| {
+                    RhinolabsError::ConfigError("Project profiles require a target path".into())
+                })?
+                .to_path_buf(),
+        };
+
         // For Main-Profile (User type): also install instructions, settings, and output style
         // For Project profiles: install as a plugin structure
-        let (instructions_installed, settings_installed, output_style_installed) =
-            if profile.profile_type == ProfileType::User {
-                Self::install_main_profile_config(&claude_target)?
-            } else {
-                Self::install_project_profile_as_plugin(&base_target, &profile)?
-            };
+        let (instructions_installed, settings_installed, output_style_installed) = if profile
+            .profile_type
+            == ProfileType::User
+        {
+            Self::install_main_profile_config_for_targets(effective_targets)?
+        } else {
+            Self::install_project_profile_for_targets(&base_target, &profile, effective_targets)?
+        };
 
         Ok(ProfileInstallResult {
             profile_id: profile.id,
@@ -686,65 +730,76 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
             instructions_installed,
             settings_installed,
             output_style_installed,
+            targets_installed: effective_targets.to_vec(),
         })
     }
 
-    /// Install Project Profile as a plugin structure
-    /// Creates:
-    ///   - .claude-plugin/plugin.json (plugin manifest from profile metadata)
-    ///   - CLAUDE.md (with auto-invoke table and instructions)
-    ///   - .github/copilot-instructions.md (if generate_copilot is true)
-    ///   - AGENTS.md (if generate_agents is true)
-    fn install_project_profile_as_plugin(
+    /// Install Project Profile for multiple deploy targets.
+    ///
+    /// For each target:
+    /// 1. Generate instructions content with correct skill path references
+    /// 2. Write instructions file (CLAUDE.md / AGENTS.md / GEMINI.md)
+    ///
+    /// Only for ClaudeCode target:
+    /// 3. Create .claude-plugin/plugin.json manifest
+    /// 4. Optionally write .github/copilot-instructions.md
+    fn install_project_profile_for_targets(
         target_path: &Path,
         profile: &Profile,
+        targets: &[DeployTarget],
     ) -> Result<(Option<bool>, Option<bool>, Option<String>)> {
-        // 1. Create .claude-plugin/plugin.json
-        let plugin_dir = target_path.join(".claude-plugin");
-        fs::create_dir_all(&plugin_dir)?;
+        for target in targets {
+            // Generate instructions content for this specific target
+            let instructions_content = Self::generate_instructions_for_target(profile, *target);
 
-        let plugin_manifest = serde_json::json!({
-            "name": format!("profile-{}", profile.id),
-            "description": profile.description,
-            "version": "1.0.0",
-            "author": {
-                "name": "Rhinolabs"
-            },
-            "profile": {
-                "id": profile.id,
-                "name": profile.name,
-                "skills": profile.skills,
-                "autoInvokeRules": profile.auto_invoke_rules
+            // Write instructions file (only if it doesn't exist — don't overwrite user's custom file)
+            let instructions_path = TargetPaths::instructions_path(*target, target_path);
+            if !instructions_path.exists() {
+                fs::write(&instructions_path, &instructions_content)?;
             }
-        });
 
-        let manifest_path = plugin_dir.join("plugin.json");
-        fs::write(
-            &manifest_path,
-            serde_json::to_string_pretty(&plugin_manifest)?,
-        )?;
+            // ClaudeCode-specific: create plugin manifest and copilot instructions
+            if *target == DeployTarget::ClaudeCode {
+                let plugin_dir = target_path.join(".claude-plugin");
+                fs::create_dir_all(&plugin_dir)?;
 
-        // 2. Generate content for AI instruction files
-        let content = Self::generate_ai_instructions_content(profile);
+                let plugin_manifest = serde_json::json!({
+                    "name": format!("profile-{}", profile.id),
+                    "description": profile.description,
+                    "version": "1.0.0",
+                    "author": {
+                        "name": "Rhinolabs"
+                    },
+                    "profile": {
+                        "id": profile.id,
+                        "name": profile.name,
+                        "skills": profile.skills,
+                        "autoInvokeRules": profile.auto_invoke_rules
+                    }
+                });
 
-        // 3. Create CLAUDE.md
-        let claude_md_path = target_path.join("CLAUDE.md");
-        // Only create if doesn't exist (don't overwrite user's custom CLAUDE.md)
-        if !claude_md_path.exists() {
-            fs::write(&claude_md_path, &content.claude_md)?;
+                let manifest_path = plugin_dir.join("plugin.json");
+                fs::write(
+                    &manifest_path,
+                    serde_json::to_string_pretty(&plugin_manifest)?,
+                )?;
+
+                // Create .github/copilot-instructions.md if enabled
+                if profile.generate_copilot {
+                    let github_dir = target_path.join(".github");
+                    fs::create_dir_all(&github_dir)?;
+                    let copilot_path = github_dir.join("copilot-instructions.md");
+                    let copilot_content = Self::generate_copilot_instructions(profile);
+                    fs::write(&copilot_path, &copilot_content)?;
+                }
+            }
         }
 
-        // 4. Create .github/copilot-instructions.md if enabled
-        if profile.generate_copilot {
-            let github_dir = target_path.join(".github");
-            fs::create_dir_all(&github_dir)?;
-            let copilot_path = github_dir.join("copilot-instructions.md");
-            fs::write(&copilot_path, &content.copilot_md)?;
-        }
-
-        // 5. Create AGENTS.md if enabled (master file)
-        if profile.generate_agents {
+        // If generate_agents is true and Amp is NOT in targets, still generate AGENTS.md
+        // as a supplementary cross-reference file (with .claude/skills/ paths)
+        if profile.generate_agents && !targets.contains(&DeployTarget::Amp) {
             let agents_path = target_path.join("AGENTS.md");
+            let content = Self::generate_ai_instructions_content(profile);
             fs::write(&agents_path, &content.agents_md)?;
         }
 
@@ -966,39 +1021,134 @@ This profile generates:
         }
     }
 
-    /// Install Main-Profile configuration (instructions, settings, output style)
-    fn install_main_profile_config(
-        claude_target: &Path,
+    /// Generate instructions content for a specific deploy target.
+    /// Returns a single string of instructions content with correct skill path references.
+    fn generate_instructions_for_target(profile: &Profile, target: DeployTarget) -> String {
+        let skills_prefix = target.project_skills_prefix();
+
+        // Build auto-invoke table
+        let auto_invoke_table = if !profile.auto_invoke_rules.is_empty() {
+            let rows: Vec<String> = profile
+                .auto_invoke_rules
+                .iter()
+                .map(|rule| {
+                    format!(
+                        "| {} | {} | `{}/{}/SKILL.md` |",
+                        rule.trigger, rule.skill_id, skills_prefix, rule.skill_id
+                    )
+                })
+                .collect();
+
+            format!(
+                r#"## Auto-invoke Skills
+
+IMPORTANT: Load these skills based on context:
+
+| Context | Skill | Read First |
+|---------|-------|------------|
+{}
+
+"#,
+                rows.join("\n")
+            )
+        } else {
+            String::new()
+        };
+
+        // Build skills list
+        let skills_list = profile
+            .skills
+            .iter()
+            .map(|s| format!("- `{}`: See `{}/{}/SKILL.md`", s, skills_prefix, s))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // Build custom instructions section
+        let custom_instructions = match &profile.instructions {
+            Some(instr) if !instr.is_empty() => format!(
+                r#"## Project Standards
+
+{}
+
+"#,
+                instr
+            ),
+            _ => String::new(),
+        };
+
+        format!(
+            r#"# Project Instructions
+
+> Auto-generated by rhinolabs-ai | Profile: {}
+> Run `rhinolabs-ai profile update` to regenerate
+
+{}{}## Available Skills
+
+Skills in `{}/`:
+
+{}
+
+---
+*Installed by rhinolabs-ai | Profile: {}*
+"#,
+            profile.id,
+            auto_invoke_table,
+            custom_instructions,
+            skills_prefix,
+            skills_list,
+            profile.id
+        )
+    }
+
+    /// Generate copilot-instructions.md content (adapted for GitHub Copilot)
+    fn generate_copilot_instructions(profile: &Profile) -> String {
+        let content = Self::generate_ai_instructions_content(profile);
+        content.copilot_md
+    }
+
+    /// Install Main-Profile configuration for multiple targets
+    fn install_main_profile_config_for_targets(
+        targets: &[DeployTarget],
     ) -> Result<(Option<bool>, Option<bool>, Option<String>)> {
         let mut instructions_installed = None;
         let mut output_style_installed = None;
 
-        // 1. Install Instructions (CLAUDE.md)
-        let instructions = InstructionsManager::get()?;
-        if !instructions.content.is_empty() {
-            let target_path = claude_target.join("CLAUDE.md");
-            fs::write(&target_path, &instructions.content)?;
-            instructions_installed = Some(true);
+        for target in targets {
+            let config_dir = TargetPaths::user_config_dir(*target)?;
+            fs::create_dir_all(&config_dir)?;
+
+            // Install Instructions
+            let instructions = InstructionsManager::get()?;
+            if !instructions.content.is_empty() {
+                let target_path = TargetPaths::instructions_path(*target, &config_dir);
+                fs::write(&target_path, &instructions.content)?;
+                instructions_installed = Some(true);
+            }
+
+            // ClaudeCode-specific: install settings.json and output styles
+            if *target == DeployTarget::ClaudeCode {
+                let settings = Settings::get()?;
+                let settings_target = config_dir.join("settings.json");
+                let settings_json = serde_json::to_string_pretty(&settings)?;
+                fs::write(&settings_target, settings_json)?;
+
+                if let Ok(Some(style)) = OutputStyles::get_active() {
+                    let styles_dir = config_dir.join("output-styles");
+                    fs::create_dir_all(&styles_dir)?;
+
+                    let style_content = Self::generate_output_style_content(&style);
+                    let style_path = styles_dir.join(format!("{}.md", style.id));
+                    fs::write(&style_path, style_content)?;
+                    output_style_installed = Some(style.name.clone());
+                }
+            }
         }
 
-        // 2. Install Settings
-        let settings = Settings::get()?;
-        let settings_target = claude_target.join("settings.json");
-        let settings_json = serde_json::to_string_pretty(&settings)?;
-        fs::write(&settings_target, settings_json)?;
-        let settings_installed = Some(true);
-
-        // 3. Install Active Output Style
-        if let Ok(Some(style)) = OutputStyles::get_active() {
-            let styles_dir = claude_target.join("output-styles");
-            fs::create_dir_all(&styles_dir)?;
-
-            // Generate the style file content
-            let style_content = Self::generate_output_style_content(&style);
-            let style_path = styles_dir.join(format!("{}.md", style.id));
-            fs::write(&style_path, style_content)?;
-            output_style_installed = Some(style.name.clone());
-        }
+        let settings_installed = if targets.contains(&DeployTarget::ClaudeCode) {
+            Some(true)
+        } else {
+            None
+        };
 
         Ok((
             instructions_installed,
@@ -1031,64 +1181,66 @@ This profile generates:
         Ok(())
     }
 
-    /// Uninstall a profile from a target path
-    pub fn uninstall(target_path: &Path) -> Result<()> {
-        let claude_dir = Self::claude_project_dir(target_path);
-        let plugin_dir = target_path.join(".claude-plugin");
+    /// Uninstall a profile from a target path.
+    /// If `targets` is `None`, removes ALL known target artifacts.
+    pub fn uninstall(target_path: &Path, targets: Option<&[DeployTarget]>) -> Result<()> {
+        let effective_targets = targets.unwrap_or_else(|| DeployTarget::all());
 
-        if !claude_dir.exists() && !plugin_dir.exists() {
+        // Check if any installation exists
+        let has_any = effective_targets.iter().any(|target| {
+            let config_dir = TargetPaths::project_config_dir(*target, target_path);
+            let instructions = TargetPaths::instructions_path(*target, target_path);
+            config_dir.exists() || instructions.exists()
+        }) || target_path.join(".claude-plugin").exists();
+
+        if !has_any {
             return Err(RhinolabsError::ConfigError(format!(
                 "No profile installation found at {}",
                 target_path.display()
             )));
         }
 
-        // Remove .claude directory (skills)
-        if claude_dir.exists() {
-            fs::remove_dir_all(&claude_dir)?;
-        }
+        for target in effective_targets {
+            // Remove target config directory (skills)
+            let config_dir = TargetPaths::project_config_dir(*target, target_path);
+            if config_dir.exists() {
+                fs::remove_dir_all(&config_dir)?;
+            }
 
-        // Remove .claude-plugin directory (plugin manifest)
-        if plugin_dir.exists() {
-            fs::remove_dir_all(&plugin_dir)?;
-        }
-
-        // Remove CLAUDE.md only if it was generated by us (check for marker)
-        let claude_md = target_path.join("CLAUDE.md");
-        if claude_md.exists() {
-            if let Ok(content) = fs::read_to_string(&claude_md) {
-                if content.contains("*Installed by rhinolabs-ai")
-                    || content.contains("Auto-generated by rhinolabs-ai")
-                {
-                    fs::remove_file(&claude_md)?;
+            // Remove instructions file if generated by rhinolabs-ai
+            let instructions_path = TargetPaths::instructions_path(*target, target_path);
+            if instructions_path.exists() {
+                if let Ok(content) = fs::read_to_string(&instructions_path) {
+                    if content.contains("rhinolabs-ai") {
+                        fs::remove_file(&instructions_path)?;
+                    }
                 }
             }
-        }
 
-        // Remove AGENTS.md only if it was generated by us
-        let agents_md = target_path.join("AGENTS.md");
-        if agents_md.exists() {
-            if let Ok(content) = fs::read_to_string(&agents_md) {
-                if content.contains("Generated by rhinolabs-ai") {
-                    fs::remove_file(&agents_md)?;
+            // ClaudeCode-specific cleanup
+            if *target == DeployTarget::ClaudeCode {
+                // Remove .claude-plugin directory
+                let plugin_dir = target_path.join(".claude-plugin");
+                if plugin_dir.exists() {
+                    fs::remove_dir_all(&plugin_dir)?;
                 }
-            }
-        }
 
-        // Remove .github/copilot-instructions.md only if it was generated by us
-        let copilot_md = target_path.join(".github").join("copilot-instructions.md");
-        if copilot_md.exists() {
-            if let Ok(content) = fs::read_to_string(&copilot_md) {
-                if content.contains("Generated by rhinolabs-ai")
-                    || content.contains("Auto-generated by rhinolabs-ai")
-                {
-                    fs::remove_file(&copilot_md)?;
-                    // Remove .github dir if empty
-                    let github_dir = target_path.join(".github");
-                    if github_dir.exists() {
-                        if let Ok(entries) = fs::read_dir(&github_dir) {
-                            if entries.count() == 0 {
-                                fs::remove_dir(&github_dir)?;
+                // Remove .github/copilot-instructions.md only if generated by us
+                let copilot_md = target_path.join(".github").join("copilot-instructions.md");
+                if copilot_md.exists() {
+                    if let Ok(content) = fs::read_to_string(&copilot_md) {
+                        if content.contains("Generated by rhinolabs-ai")
+                            || content.contains("Auto-generated by rhinolabs-ai")
+                        {
+                            fs::remove_file(&copilot_md)?;
+                            // Remove .github dir if empty
+                            let github_dir = target_path.join(".github");
+                            if github_dir.exists() {
+                                if let Ok(entries) = fs::read_dir(&github_dir) {
+                                    if entries.count() == 0 {
+                                        fs::remove_dir(&github_dir)?;
+                                    }
+                                }
                             }
                         }
                     }
@@ -1103,9 +1255,10 @@ This profile generates:
     pub fn update_installed(
         profile_id: &str,
         target_path: Option<&Path>,
+        targets: Option<&[DeployTarget]>,
     ) -> Result<ProfileInstallResult> {
         // Simply re-install - install_skill already handles removing existing
-        Self::install(profile_id, target_path)
+        Self::install(profile_id, target_path, targets)
     }
 
     /// Copy directory recursively
@@ -1251,6 +1404,7 @@ This profile generates:
 mod tests {
     use super::*;
     use crate::test_utils::{TestEnv as BaseTestEnv, ENV_MUTEX};
+    use crate::DeployTarget;
 
     struct TestEnv {
         base: BaseTestEnv,
@@ -1422,6 +1576,7 @@ mod tests {
             instructions_installed: None,
             settings_installed: None,
             output_style_installed: None,
+            targets_installed: vec![DeployTarget::ClaudeCode],
         };
 
         let json = serde_json::to_string(&result).unwrap();
@@ -1443,6 +1598,7 @@ mod tests {
             instructions_installed: Some(true),
             settings_installed: Some(true),
             output_style_installed: Some("Rhinolabs".to_string()),
+            targets_installed: vec![DeployTarget::ClaudeCode],
         };
 
         let json = serde_json::to_string(&result).unwrap();
@@ -1541,6 +1697,717 @@ mod tests {
 
         let deserialized: AutoInvokeRule = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.skill_id, "react-19");
+    }
+
+    // ============================================
+    // Multi-Target Deployment Tests
+    // ============================================
+
+    #[test]
+    fn test_generate_instructions_for_target_claudecode_uses_claude_prefix() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string(), "typescript".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let content =
+            Profiles::generate_instructions_for_target(&profile, DeployTarget::ClaudeCode);
+        assert!(content.contains(".claude/skills/"));
+        assert!(content.contains(".claude/skills/react-19/SKILL.md"));
+        assert!(content.contains(".claude/skills/typescript/SKILL.md"));
+        assert!(!content.contains(".agents/skills/"));
+        assert!(!content.contains(".agent/skills/"));
+        assert!(!content.contains(".opencode/skills/"));
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_amp_uses_agents_prefix() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let content = Profiles::generate_instructions_for_target(&profile, DeployTarget::Amp);
+        assert!(content.contains(".agents/skills/"));
+        assert!(content.contains(".agents/skills/react-19/SKILL.md"));
+        assert!(!content.contains(".claude/skills/"));
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_antigravity_uses_agent_prefix() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let content =
+            Profiles::generate_instructions_for_target(&profile, DeployTarget::Antigravity);
+        assert!(content.contains(".agent/skills/"));
+        assert!(content.contains(".agent/skills/react-19/SKILL.md"));
+        assert!(!content.contains(".agents/skills/"));
+        assert!(!content.contains(".claude/skills/"));
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_opencode_uses_opencode_prefix() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let content = Profiles::generate_instructions_for_target(&profile, DeployTarget::OpenCode);
+        assert!(content.contains(".opencode/skills/"));
+        assert!(content.contains(".opencode/skills/react-19/SKILL.md"));
+        assert!(!content.contains(".claude/skills/"));
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_includes_auto_invoke_rules_with_correct_prefix() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: vec![AutoInvokeRule {
+                skill_id: "react-19".to_string(),
+                trigger: "Editing .tsx files".to_string(),
+                description: "React 19 patterns".to_string(),
+            }],
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let content = Profiles::generate_instructions_for_target(&profile, DeployTarget::Amp);
+        assert!(content.contains("Auto-invoke Skills"));
+        assert!(content.contains(".agents/skills/react-19/SKILL.md"));
+        assert!(!content.contains(".claude/skills/react-19/SKILL.md"));
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_includes_custom_instructions() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec![],
+            auto_invoke_rules: Vec::new(),
+            instructions: Some("Use strict TypeScript always.".to_string()),
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let content = Profiles::generate_instructions_for_target(&profile, DeployTarget::Amp);
+        assert!(content.contains("Use strict TypeScript always."));
+        assert!(content.contains("Project Standards"));
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_contains_rhinolabs_marker() {
+        let profile = Profile {
+            id: "my-profile".to_string(),
+            name: "My Profile".to_string(),
+            description: "Desc".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["skill-a".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        // All targets should include the rhinolabs-ai marker (used by uninstall)
+        for target in DeployTarget::all() {
+            let content = Profiles::generate_instructions_for_target(&profile, *target);
+            assert!(
+                content.contains("rhinolabs-ai"),
+                "Target {:?} is missing rhinolabs-ai marker",
+                target
+            );
+            assert!(
+                content.contains("my-profile"),
+                "Target {:?} is missing profile id",
+                target
+            );
+        }
+    }
+
+    #[test]
+    fn test_generate_instructions_for_target_each_target_uses_different_prefix() {
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Desc".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["skill-a".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let claude = Profiles::generate_instructions_for_target(&profile, DeployTarget::ClaudeCode);
+        let amp = Profiles::generate_instructions_for_target(&profile, DeployTarget::Amp);
+        let antigravity =
+            Profiles::generate_instructions_for_target(&profile, DeployTarget::Antigravity);
+        let opencode = Profiles::generate_instructions_for_target(&profile, DeployTarget::OpenCode);
+
+        // Each should contain its own prefix and NOT contain others
+        assert!(claude.contains(".claude/skills/skill-a/SKILL.md"));
+        assert!(amp.contains(".agents/skills/skill-a/SKILL.md"));
+        assert!(antigravity.contains(".agent/skills/skill-a/SKILL.md"));
+        assert!(opencode.contains(".opencode/skills/skill-a/SKILL.md"));
+
+        // Cross-check: no prefix leaks into wrong target
+        assert!(!amp.contains(".claude/skills/"));
+        assert!(!antigravity.contains(".claude/skills/"));
+        assert!(!opencode.contains(".claude/skills/"));
+    }
+
+    #[test]
+    fn test_install_project_profile_for_targets_amp_creates_agents_md() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let targets = [DeployTarget::Amp];
+        let result =
+            Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets);
+        assert!(result.is_ok());
+
+        // AGENTS.md should exist (Amp's instructions file)
+        let agents_md = target_dir.path().join("AGENTS.md");
+        assert!(agents_md.exists(), "AGENTS.md should be created for Amp");
+
+        let content = fs::read_to_string(&agents_md).unwrap();
+        assert!(content.contains(".agents/skills/"));
+        assert!(!content.contains(".claude/skills/"));
+
+        // CLAUDE.md should NOT exist
+        assert!(
+            !target_dir.path().join("CLAUDE.md").exists(),
+            "CLAUDE.md should NOT be created when only deploying to Amp"
+        );
+
+        // .claude-plugin should NOT exist (ClaudeCode-specific)
+        assert!(
+            !target_dir.path().join(".claude-plugin").exists(),
+            ".claude-plugin should NOT be created for Amp"
+        );
+    }
+
+    #[test]
+    fn test_install_project_profile_for_targets_multi_target() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Test profile".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let targets = [DeployTarget::ClaudeCode, DeployTarget::Amp];
+        let result =
+            Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets);
+        assert!(result.is_ok());
+
+        // Both CLAUDE.md and AGENTS.md should exist
+        assert!(target_dir.path().join("CLAUDE.md").exists());
+        assert!(target_dir.path().join("AGENTS.md").exists());
+
+        // Each should contain its own prefix
+        let claude_content = fs::read_to_string(target_dir.path().join("CLAUDE.md")).unwrap();
+        let agents_content = fs::read_to_string(target_dir.path().join("AGENTS.md")).unwrap();
+
+        assert!(claude_content.contains(".claude/skills/"));
+        assert!(agents_content.contains(".agents/skills/"));
+
+        // .claude-plugin should exist (ClaudeCode included)
+        assert!(target_dir.path().join(".claude-plugin").exists());
+    }
+
+    #[test]
+    fn test_install_project_profile_for_targets_claudecode_creates_plugin_manifest() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "my-proj".to_string(),
+            name: "My Project".to_string(),
+            description: "A test project".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let targets = [DeployTarget::ClaudeCode];
+        Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets)
+            .unwrap();
+
+        let manifest_path = target_dir.path().join(".claude-plugin").join("plugin.json");
+        assert!(manifest_path.exists());
+
+        let manifest: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        assert_eq!(manifest["profile"]["id"].as_str().unwrap(), "my-proj");
+        assert_eq!(manifest["profile"]["name"].as_str().unwrap(), "My Project");
+    }
+
+    #[test]
+    fn test_install_project_profile_for_targets_copilot_only_for_claudecode() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Desc".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec![],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: true,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        // Install only to Amp → no copilot file
+        let targets = [DeployTarget::Amp];
+        Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets)
+            .unwrap();
+        assert!(
+            !target_dir.path().join(".github").exists(),
+            "copilot-instructions.md should NOT be created for Amp target"
+        );
+
+        // Install to ClaudeCode → copilot file should be created
+        let target_dir2 = tempfile::tempdir().unwrap();
+        let targets = [DeployTarget::ClaudeCode];
+        Profiles::install_project_profile_for_targets(target_dir2.path(), &profile, &targets)
+            .unwrap();
+        assert!(
+            target_dir2
+                .path()
+                .join(".github")
+                .join("copilot-instructions.md")
+                .exists(),
+            "copilot-instructions.md should be created when ClaudeCode target + generate_copilot"
+        );
+    }
+
+    #[test]
+    fn test_install_project_profile_for_targets_generate_agents_supplementary() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Desc".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["skill-a".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: true, // generate supplementary AGENTS.md
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        // Install only to ClaudeCode with generate_agents=true
+        // Should still create AGENTS.md as supplementary cross-reference
+        let targets = [DeployTarget::ClaudeCode];
+        Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets)
+            .unwrap();
+
+        assert!(target_dir.path().join("CLAUDE.md").exists());
+        assert!(
+            target_dir.path().join("AGENTS.md").exists(),
+            "Supplementary AGENTS.md should be created when generate_agents=true"
+        );
+    }
+
+    #[test]
+    fn test_install_project_profile_for_targets_no_supplementary_agents_when_amp_target() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Desc".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["skill-a".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: true,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        // When Amp IS in targets, generate_agents should NOT create supplementary AGENTS.md
+        // (because Amp's primary instructions file IS AGENTS.md already)
+        let targets = [DeployTarget::ClaudeCode, DeployTarget::Amp];
+        Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets)
+            .unwrap();
+
+        // AGENTS.md should exist (from Amp target), but should use .agents/skills/ prefix
+        let agents_content = fs::read_to_string(target_dir.path().join("AGENTS.md")).unwrap();
+        assert!(agents_content.contains(".agents/skills/"));
+    }
+
+    #[test]
+    fn test_install_project_profile_does_not_overwrite_existing_instructions() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Pre-create a custom AGENTS.md
+        fs::write(
+            target_dir.path().join("AGENTS.md"),
+            "# My Custom AGENTS.md\nDo not overwrite me.",
+        )
+        .unwrap();
+
+        let profile = Profile {
+            id: "test".to_string(),
+            name: "Test".to_string(),
+            description: "Desc".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["skill-a".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let targets = [DeployTarget::Amp];
+        Profiles::install_project_profile_for_targets(target_dir.path(), &profile, &targets)
+            .unwrap();
+
+        // The pre-existing file should NOT be overwritten
+        let content = fs::read_to_string(target_dir.path().join("AGENTS.md")).unwrap();
+        assert!(
+            content.contains("Do not overwrite me."),
+            "Existing instructions file should not be overwritten"
+        );
+    }
+
+    #[test]
+    fn test_install_project_profile_all_four_targets() {
+        let target_dir = tempfile::tempdir().unwrap();
+        let profile = Profile {
+            id: "full".to_string(),
+            name: "Full".to_string(),
+            description: "All targets".to_string(),
+            profile_type: ProfileType::Project,
+            skills: vec!["react-19".to_string()],
+            auto_invoke_rules: Vec::new(),
+            instructions: None,
+            generate_copilot: false,
+            generate_agents: false,
+            created_at: "2024-01-01T00:00:00Z".to_string(),
+            updated_at: "2024-01-01T00:00:00Z".to_string(),
+        };
+
+        let targets = DeployTarget::all();
+        Profiles::install_project_profile_for_targets(target_dir.path(), &profile, targets)
+            .unwrap();
+
+        // All four instructions files should exist
+        assert!(target_dir.path().join("CLAUDE.md").exists());
+        assert!(target_dir.path().join("AGENTS.md").exists());
+        assert!(target_dir.path().join("GEMINI.md").exists());
+        assert!(target_dir.path().join("opencode.json").exists());
+
+        // Only ClaudeCode gets .claude-plugin
+        assert!(target_dir.path().join(".claude-plugin").exists());
+    }
+
+    #[test]
+    fn test_uninstall_removes_target_artifacts() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Simulate installed artifacts for Amp
+        let agents_dir = target_dir.path().join(".agents");
+        fs::create_dir_all(agents_dir.join("skills").join("react-19")).unwrap();
+        fs::write(
+            agents_dir.join("skills").join("react-19").join("SKILL.md"),
+            "# React 19",
+        )
+        .unwrap();
+        fs::write(
+            target_dir.path().join("AGENTS.md"),
+            "# Instructions\n*Installed by rhinolabs-ai*",
+        )
+        .unwrap();
+
+        let targets = [DeployTarget::Amp];
+        let result = Profiles::uninstall(target_dir.path(), Some(&targets));
+        assert!(result.is_ok());
+
+        // Amp artifacts should be removed
+        assert!(!agents_dir.exists(), ".agents/ should be removed");
+        assert!(
+            !target_dir.path().join("AGENTS.md").exists(),
+            "AGENTS.md should be removed (contains rhinolabs-ai marker)"
+        );
+    }
+
+    #[test]
+    fn test_uninstall_specific_target_preserves_others() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Install artifacts for BOTH Claude and Amp
+        let claude_dir = target_dir.path().join(".claude");
+        let agents_dir = target_dir.path().join(".agents");
+        fs::create_dir_all(claude_dir.join("skills")).unwrap();
+        fs::create_dir_all(agents_dir.join("skills")).unwrap();
+        fs::write(
+            target_dir.path().join("CLAUDE.md"),
+            "# Instructions\n*Installed by rhinolabs-ai*",
+        )
+        .unwrap();
+        fs::write(
+            target_dir.path().join("AGENTS.md"),
+            "# Instructions\n*Installed by rhinolabs-ai*",
+        )
+        .unwrap();
+        // Also create .claude-plugin for ClaudeCode
+        let plugin_dir = target_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(plugin_dir.join("plugin.json"), "{}").unwrap();
+
+        // Uninstall ONLY Amp
+        let targets = [DeployTarget::Amp];
+        Profiles::uninstall(target_dir.path(), Some(&targets)).unwrap();
+
+        // Amp artifacts should be gone
+        assert!(!agents_dir.exists());
+        assert!(!target_dir.path().join("AGENTS.md").exists());
+
+        // Claude artifacts should be PRESERVED
+        assert!(
+            claude_dir.exists(),
+            ".claude/ should still exist after uninstalling only Amp"
+        );
+        assert!(
+            target_dir.path().join("CLAUDE.md").exists(),
+            "CLAUDE.md should still exist after uninstalling only Amp"
+        );
+        assert!(
+            plugin_dir.exists(),
+            ".claude-plugin/ should still exist after uninstalling only Amp"
+        );
+    }
+
+    #[test]
+    fn test_uninstall_none_targets_removes_all() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Install artifacts for ALL targets
+        fs::create_dir_all(target_dir.path().join(".claude").join("skills")).unwrap();
+        fs::create_dir_all(target_dir.path().join(".agents").join("skills")).unwrap();
+        fs::create_dir_all(target_dir.path().join(".agent").join("skills")).unwrap();
+        fs::create_dir_all(target_dir.path().join(".opencode").join("skills")).unwrap();
+        fs::write(
+            target_dir.path().join("CLAUDE.md"),
+            "rhinolabs-ai generated",
+        )
+        .unwrap();
+        fs::write(
+            target_dir.path().join("AGENTS.md"),
+            "rhinolabs-ai generated",
+        )
+        .unwrap();
+        fs::write(
+            target_dir.path().join("GEMINI.md"),
+            "rhinolabs-ai generated",
+        )
+        .unwrap();
+        fs::write(
+            target_dir.path().join("opencode.json"),
+            "rhinolabs-ai generated",
+        )
+        .unwrap();
+
+        // Uninstall with None (= remove all)
+        Profiles::uninstall(target_dir.path(), None).unwrap();
+
+        assert!(!target_dir.path().join(".claude").exists());
+        assert!(!target_dir.path().join(".agents").exists());
+        assert!(!target_dir.path().join(".agent").exists());
+        assert!(!target_dir.path().join(".opencode").exists());
+        assert!(!target_dir.path().join("CLAUDE.md").exists());
+        assert!(!target_dir.path().join("AGENTS.md").exists());
+        assert!(!target_dir.path().join("GEMINI.md").exists());
+        assert!(!target_dir.path().join("opencode.json").exists());
+    }
+
+    #[test]
+    fn test_uninstall_preserves_non_rhinolabs_instructions() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Create a CLAUDE.md that does NOT contain rhinolabs-ai marker
+        fs::write(
+            target_dir.path().join("CLAUDE.md"),
+            "# My custom instructions\nNothing auto-generated here.",
+        )
+        .unwrap();
+        // Need at least one artifact to pass the "has_any" check
+        fs::create_dir_all(target_dir.path().join(".claude").join("skills")).unwrap();
+
+        let targets = [DeployTarget::ClaudeCode];
+        Profiles::uninstall(target_dir.path(), Some(&targets)).unwrap();
+
+        // The .claude dir should be removed (it's a config dir)
+        assert!(!target_dir.path().join(".claude").exists());
+
+        // But the custom CLAUDE.md should be PRESERVED (no rhinolabs-ai marker)
+        assert!(
+            target_dir.path().join("CLAUDE.md").exists(),
+            "Custom CLAUDE.md without rhinolabs-ai marker should be preserved"
+        );
+    }
+
+    #[test]
+    fn test_uninstall_claudecode_removes_plugin_dir() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Create .claude-plugin
+        let plugin_dir = target_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        fs::write(plugin_dir.join("plugin.json"), "{}").unwrap();
+
+        let targets = [DeployTarget::ClaudeCode];
+        Profiles::uninstall(target_dir.path(), Some(&targets)).unwrap();
+
+        assert!(
+            !plugin_dir.exists(),
+            ".claude-plugin should be removed on ClaudeCode uninstall"
+        );
+    }
+
+    #[test]
+    fn test_uninstall_no_artifacts_returns_error() {
+        let target_dir = tempfile::tempdir().unwrap();
+
+        // Empty directory — nothing to uninstall
+        let result = Profiles::uninstall(target_dir.path(), None);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_generate_template_instructions_for_target_uses_custom_prefix() {
+        let content = Profiles::generate_template_instructions_for_target(
+            "React Stack",
+            "React 19 with TypeScript",
+            &["react-19".to_string()],
+            ".agents/skills",
+        );
+
+        assert!(content.contains(".agents/skills/react-19/SKILL.md"));
+        assert!(!content.contains(".claude/skills/"));
+    }
+
+    #[test]
+    fn test_generate_template_instructions_uses_claude_prefix_by_default() {
+        let content = Profiles::generate_template_instructions(
+            "React Stack",
+            "React 19 with TypeScript",
+            &["react-19".to_string()],
+        );
+
+        assert!(content.contains(".claude/skills/react-19/SKILL.md"));
+    }
+
+    #[test]
+    fn test_profile_install_result_targets_installed_serialization() {
+        let result = ProfileInstallResult {
+            profile_id: "test".to_string(),
+            profile_name: "Test".to_string(),
+            target_path: "/project".to_string(),
+            skills_installed: vec!["react-19".to_string()],
+            skills_failed: vec![],
+            instructions_installed: Some(true),
+            settings_installed: None,
+            output_style_installed: None,
+            targets_installed: vec![DeployTarget::ClaudeCode, DeployTarget::Amp],
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"claude-code\""));
+        assert!(json.contains("\"amp\""));
+
+        let deserialized: ProfileInstallResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.targets_installed.len(), 2);
+        assert!(deserialized
+            .targets_installed
+            .contains(&DeployTarget::ClaudeCode));
+        assert!(deserialized.targets_installed.contains(&DeployTarget::Amp));
     }
 
     #[test]

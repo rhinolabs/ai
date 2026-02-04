@@ -14,6 +14,7 @@ pub mod project;
 pub mod rag;
 pub mod settings;
 pub mod skills;
+pub mod targets;
 pub mod updater;
 pub mod version;
 
@@ -42,6 +43,10 @@ pub use settings::{
 pub use skills::{
     CreateSkillInput, InstallSkillInput, RemoteSkill, RemoteSkillFile, Skill, SkillCategory,
     SkillSchema, SkillSource, SkillSourceType, Skills, UpdateSkillInput,
+};
+pub use targets::{
+    ClaudeCodeDeployer, DeployTarget, GenericDeployer, InstructionsDeployer, McpDeployer,
+    SkillDeployer, TargetDetector, TargetPaths,
 };
 pub use updater::Updater;
 pub use version::Version;

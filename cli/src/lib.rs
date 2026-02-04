@@ -105,6 +105,10 @@ enum ProfileAction {
         /// Target project path (defaults to current directory)
         #[arg(short = 'P', long)]
         path: Option<String>,
+
+        /// Deploy targets (claude-code, amp, antigravity, open-code, all)
+        #[arg(short, long)]
+        target: Vec<String>,
     },
 
     /// Update an installed profile with latest skill versions
@@ -115,6 +119,10 @@ enum ProfileAction {
         /// Target project path (defaults to current directory)
         #[arg(short = 'P', long)]
         path: Option<String>,
+
+        /// Deploy targets (claude-code, amp, antigravity, open-code, all)
+        #[arg(short, long)]
+        target: Vec<String>,
     },
 
     /// Uninstall profile from a project (removes .claude directory)
@@ -122,6 +130,10 @@ enum ProfileAction {
         /// Target project path (defaults to current directory)
         #[arg(short = 'P', long)]
         path: Option<String>,
+
+        /// Deploy targets (claude-code, amp, antigravity, open-code, all)
+        #[arg(short, long)]
+        target: Vec<String>,
     },
 }
 
@@ -253,14 +265,22 @@ pub async fn run() -> anyhow::Result<()> {
             ProfileAction::Show { profile_id } => {
                 profile::show(&profile_id)?;
             }
-            ProfileAction::Install { profile, path } => {
-                profile::install(&profile, path)?;
+            ProfileAction::Install {
+                profile,
+                path,
+                target,
+            } => {
+                profile::install(&profile, path, target)?;
             }
-            ProfileAction::Update { profile, path } => {
-                profile::update(profile, path)?;
+            ProfileAction::Update {
+                profile,
+                path,
+                target,
+            } => {
+                profile::update(profile, path, target)?;
             }
-            ProfileAction::Uninstall { path } => {
-                profile::uninstall(path)?;
+            ProfileAction::Uninstall { path, target } => {
+                profile::uninstall(path, target)?;
             }
         },
         Some(Commands::Skill { action }) => match action {

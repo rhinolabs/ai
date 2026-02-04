@@ -49,6 +49,52 @@ pub enum RhinolabsError {
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
+    #[error("Target '{0}' is not yet supported for this operation")]
+    TargetNotSupported(String),
+
     #[error("{0}")]
     Other(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_target_not_supported_message() {
+        let err = RhinolabsError::TargetNotSupported("Amp".into());
+        let msg = err.to_string();
+        assert!(
+            msg.contains("Amp"),
+            "Error message should contain target name: {}",
+            msg
+        );
+        assert!(
+            msg.contains("not yet supported"),
+            "Error message should mention not supported: {}",
+            msg
+        );
+    }
+
+    #[test]
+    fn test_target_not_supported_with_different_targets() {
+        let targets = vec!["Amp", "Antigravity", "OpenCode"];
+        for name in targets {
+            let err = RhinolabsError::TargetNotSupported(name.into());
+            assert!(
+                err.to_string().contains(name),
+                "Should contain '{}' in: {}",
+                name,
+                err
+            );
+        }
+    }
+
+    #[test]
+    fn test_target_not_supported_is_debug() {
+        let err = RhinolabsError::TargetNotSupported("Amp".into());
+        let debug = format!("{:?}", err);
+        assert!(debug.contains("TargetNotSupported"));
+        assert!(debug.contains("Amp"));
+    }
 }

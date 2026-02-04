@@ -115,6 +115,16 @@ impl Paths {
     pub fn is_plugin_installed() -> bool {
         Self::plugin_dir().map(|p| p.exists()).unwrap_or(false)
     }
+
+    /// Get the skills directory for a specific deploy target (user level)
+    pub fn target_skills_dir(target: crate::DeployTarget) -> Result<PathBuf> {
+        crate::TargetPaths::user_skills_dir(target)
+    }
+
+    /// Get the project skills directory for a specific deploy target
+    pub fn target_project_skills_dir(target: crate::DeployTarget, project_path: &Path) -> PathBuf {
+        crate::TargetPaths::project_skills_dir(target, project_path)
+    }
 }
 
 #[cfg(test)]
@@ -187,5 +197,49 @@ mod tests {
 
         // Clean up
         std::env::remove_var("RHINOLABS_DEV_PATH");
+    }
+
+    #[test]
+    fn test_target_skills_dir_delegates_correctly() {
+        let target = crate::DeployTarget::ClaudeCode;
+        let direct = crate::TargetPaths::user_skills_dir(target).unwrap();
+        let via_paths = Paths::target_skills_dir(target).unwrap();
+        assert_eq!(direct, via_paths);
+    }
+
+    #[test]
+    fn test_target_skills_dir_works_for_all_targets() {
+        for target in crate::DeployTarget::all() {
+            let result = Paths::target_skills_dir(*target);
+            assert!(
+                result.is_ok(),
+                "target_skills_dir should work for {:?}",
+                target
+            );
+        }
+    }
+
+    #[test]
+    fn test_target_project_skills_dir_delegates_correctly() {
+        let project = Path::new("/home/user/project");
+        let target = crate::DeployTarget::ClaudeCode;
+
+        let direct = crate::TargetPaths::project_skills_dir(target, project);
+        let via_paths = Paths::target_project_skills_dir(target, project);
+        assert_eq!(direct, via_paths);
+    }
+
+    #[test]
+    fn test_target_project_skills_dir_works_for_all_targets() {
+        let project = Path::new("/home/user/project");
+        for target in crate::DeployTarget::all() {
+            let path = Paths::target_project_skills_dir(*target, project);
+            assert!(
+                path.starts_with(project),
+                "Project skills dir for {:?} should be under project: {:?}",
+                target,
+                path
+            );
+        }
     }
 }

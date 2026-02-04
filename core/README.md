@@ -20,6 +20,7 @@ graph TB
         SETTINGS[Settings]
         MCP[MCP]
         RAG[RAG]
+        TARGETS[Targets]
     end
 
     subgraph "Storage"
@@ -31,20 +32,24 @@ graph TB
     CLI --> SKILLS
     CLI --> DEPLOY
     CLI --> RAG
+    CLI --> TARGETS
     GUI --> PROFILES
     GUI --> SKILLS
     GUI --> DEPLOY
     GUI --> INSTALLER
+    GUI --> TARGETS
 
     PROFILES --> FS
     SKILLS --> FS
     DEPLOY --> GH
     INSTALLER --> FS
+    TARGETS --> FS
     RAG --> FS
 
     style CLI fill:#3182ce,stroke:#63b3ed,color:#fff
     style GUI fill:#805ad5,stroke:#9f7aea,color:#fff
     style RAG fill:#38a169,stroke:#68d391,color:#fff
+    style TARGETS fill:#dd6b20,stroke:#ed8936,color:#fff
 ```
 
 `rhinolabs-core` is used by both the CLI and GUI to ensure consistent behavior across all interfaces.
@@ -72,6 +77,10 @@ graph TB
         RAG[rag.rs<br/>RAG Config]
     end
 
+    subgraph "Multi-Target"
+        TARGETS[targets/<br/>Deploy Abstraction]
+    end
+
     subgraph "Utilities"
         PATHS[paths.rs<br/>Path Resolution]
         PROJECT[project.rs<br/>GitHub Config]
@@ -87,8 +96,10 @@ graph TB
     DEPLOY --> PROJECT
     DEPLOY --> PATHS
     RAG --> PATHS
+    TARGETS --> PATHS
 
     style LIB fill:#805ad5,stroke:#9f7aea,color:#fff
+    style TARGETS fill:#dd6b20,stroke:#ed8936,color:#fff
     style DEPLOY fill:#e53e3e,stroke:#fc8181,color:#fff
     style RAG fill:#38a169,stroke:#68d391,color:#fff
 ```
@@ -152,14 +163,21 @@ let content = Profiles::get_instructions("react-stack")?;
 Profiles::update_instructions("react-stack", "# New Instructions\n...")?;
 let path = Profiles::get_instructions_path("react-stack")?;
 
-// Install profile to path
-let result = Profiles::install("react-stack", Some(Path::new("./project")))?;
+// Install profile to path (defaults to ClaudeCode target)
+let result = Profiles::install("react-stack", Some(Path::new("./project")), None)?;
+
+// Install to specific targets
+let targets = vec![DeployTarget::Amp, DeployTarget::ClaudeCode];
+let result = Profiles::install("react-stack", Some(Path::new("./project")), Some(&targets))?;
 
 // Update installed profile
-let result = Profiles::update_installed("react-stack", Some(Path::new("./project")))?;
+let result = Profiles::update_installed("react-stack", Some(Path::new("./project")), None)?;
 
-// Uninstall profile
-Profiles::uninstall(Path::new("./project"))?;
+// Uninstall profile (None = remove all targets)
+Profiles::uninstall(Path::new("./project"), None)?;
+
+// Uninstall specific targets only
+Profiles::uninstall(Path::new("./project"), Some(&[DeployTarget::Amp]))?;
 ```
 
 **Instructions Generation:**
@@ -567,6 +585,112 @@ Rag::save_settings(&RagSettings {
 
 **Note:** The Rag module only manages local configuration. All actual save/search operations are performed by the MCP Worker and accessed via Claude Code's MCP integration.
 
+### targets/
+
+Multi-target deployment abstraction layer. Provides traits and implementations for deploying skills, instructions, and MCP configuration to different AI coding assistants.
+
+```mermaid
+graph TB
+    subgraph "DeployTarget Enum"
+        CC[ClaudeCode]
+        AMP[Amp]
+        AG[Antigravity]
+        OC[OpenCode]
+    end
+
+    subgraph "Deployer Traits"
+        SD[SkillDeployer]
+        ID[InstructionsDeployer]
+        MD[McpDeployer]
+        TD[TargetDetector]
+    end
+
+    subgraph "Implementations"
+        CCD[ClaudeCodeDeployer]
+        GD[GenericDeployer]
+    end
+
+    CCD --> SD
+    CCD --> ID
+    CCD --> MD
+    CCD --> TD
+
+    GD --> SD
+    GD --> ID
+
+    SD --> CC
+    SD --> AMP
+    SD --> AG
+    SD --> OC
+
+    style CCD fill:#3182ce,stroke:#63b3ed,color:#fff
+    style GD fill:#2b6cb0,stroke:#63b3ed,color:#fff
+    style CC fill:#38a169,stroke:#68d391,color:#fff
+    style AMP fill:#805ad5,stroke:#9f7aea,color:#fff
+    style AG fill:#dd6b20,stroke:#ed8936,color:#fff
+    style OC fill:#e53e3e,stroke:#fc8181,color:#fff
+```
+
+**Supported Targets:**
+
+| Target | User Skills | Project Skills | Instructions | MCP Config |
+|--------|------------|----------------|-------------|------------|
+| Claude Code | `~/.claude/skills/` | `.claude/skills/` | `CLAUDE.md` | `.mcp.json` |
+| Amp | `~/.config/agents/skills/` | `.agents/skills/` | `AGENTS.md` | `settings.json` |
+| Antigravity | `~/.gemini/antigravity/skills/` | `.agent/skills/` | `GEMINI.md` | `config.json` |
+| OpenCode | `~/.config/opencode/skills/` | `.opencode/skills/` | `opencode.json` | `opencode.json` |
+
+```rust
+use rhinolabs_core::{
+    DeployTarget, TargetPaths, ClaudeCodeDeployer, GenericDeployer,
+    SkillDeployer, InstructionsDeployer, McpDeployer, TargetDetector,
+};
+
+// Enumerate all targets
+for target in DeployTarget::all() {
+    println!("{}: installed={}", target, target.is_installed());
+}
+
+// Parse target from CLI string
+let target: DeployTarget = "amp".parse().unwrap();
+let prefix = target.project_skills_prefix(); // ".agents/skills"
+
+// Resolve paths per target
+let skills_dir = TargetPaths::user_skills_dir(DeployTarget::ClaudeCode)?;
+let project_skills = TargetPaths::project_skills_dir(DeployTarget::Amp, project_path);
+let config_dir = TargetPaths::project_config_dir(DeployTarget::Amp, project_path);
+
+// Use ClaudeCodeDeployer (implements all 4 traits including McpDeployer)
+let deployer = ClaudeCodeDeployer;
+deployer.deploy_skill_project("react-19", &source, &project)?;
+deployer.deploy_instructions_project("# Rules\n...", &project)?;
+
+// Use GenericDeployer for any target (implements SkillDeployer + InstructionsDeployer)
+let amp_deployer = GenericDeployer::new(DeployTarget::Amp);
+amp_deployer.deploy_skill_project("react-19", &source, &project)?;
+amp_deployer.deploy_instructions_project("# Rules\n...", &project)?;
+
+// Create deployers for multiple targets at once
+let deployers = GenericDeployer::for_targets(&[DeployTarget::Amp, DeployTarget::ClaudeCode]);
+
+// Trait objects for multi-target dispatch
+let deployers: Vec<Box<dyn InstructionsDeployer>> = vec![
+    Box::new(ClaudeCodeDeployer),
+    Box::new(GenericDeployer::new(DeployTarget::Amp)),
+    Box::new(GenericDeployer::new(DeployTarget::Antigravity)),
+];
+```
+
+**Module Structure:**
+
+| File | Purpose |
+|------|---------|
+| `deploy_target.rs` | `DeployTarget` enum with serde, Display, FromStr, path helpers |
+| `target_paths.rs` | `TargetPaths` static path resolver per target |
+| `traits.rs` | `SkillDeployer`, `InstructionsDeployer`, `McpDeployer`, `TargetDetector` |
+| `claude_code.rs` | `ClaudeCodeDeployer` implementing all 4 traits |
+| `generic.rs` | `GenericDeployer` parameterized deployer for any target (SkillDeployer + InstructionsDeployer) |
+
 ## Data Types
 
 ### Profile
@@ -683,6 +807,7 @@ classDiagram
         +Option~bool~ instructions_installed
         +Option~bool~ settings_installed
         +Option~String~ output_style_installed
+        +Vec~DeployTarget~ targets_installed
     }
 
     class SyncResult {
@@ -747,10 +872,10 @@ rhinolabs-core = { path = "../core" }
 ```
 
 ```rust
-use rhinolabs_core::{Profiles, Skills, Deploy};
+use rhinolabs_core::{Profiles, Skills, Deploy, DeployTarget, ClaudeCodeDeployer, GenericDeployer};
 ```
 
 ---
 
-**Version**: 1.1.0
-**Last Updated**: 2026-01-29
+**Version**: 1.2.0
+**Last Updated**: 2026-02-04
