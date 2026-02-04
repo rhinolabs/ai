@@ -16,7 +16,7 @@ dirs.workspace = true
 which.workspace = true
 
 # Core-specific dependencies
-git2 = "0.18"
+git2 = { version = "0.18", features = ["vendored-openssl"] }
 zip = "0.6"
 flate2 = "1.0"
 tar = "0.4"
