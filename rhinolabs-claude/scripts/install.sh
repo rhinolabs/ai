@@ -3,6 +3,9 @@
 # Rhinolabs AI Plugin Installer
 # Supports: Ubuntu, Arch Linux, macOS
 # Targets: Claude Code, Amp, Antigravity (Gemini), OpenCode
+#
+# This script installs the plugin base configuration.
+# Skills are installed via the rhinolabs-ai CLI using the "main" profile.
 
 set -e
 
@@ -23,6 +26,7 @@ AVAILABLE_TARGETS=("claude-code" "amp" "antigravity" "opencode")
 # Parse arguments
 SELECTED_TARGETS=()
 SHOW_HELP=false
+SKIP_SKILLS=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -33,6 +37,10 @@ while [[ $# -gt 0 ]]; do
                 SELECTED_TARGETS+=("$2")
             fi
             shift 2
+            ;;
+        --skip-skills)
+            SKIP_SKILLS=true
+            shift
             ;;
         -h|--help)
             SHOW_HELP=true
@@ -52,6 +60,7 @@ if $SHOW_HELP; then
     echo "Options:"
     echo "  -t, --target TARGET   Install for specific target (can be used multiple times)"
     echo "                        Available: claude-code, amp, antigravity, opencode, all"
+    echo "  --skip-skills         Skip skill installation (plugin base only)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Examples:"
@@ -59,6 +68,7 @@ if $SHOW_HELP; then
     echo "  ./install.sh -t claude-code            # Install for Claude Code only"
     echo "  ./install.sh -t claude-code -t amp     # Install for Claude Code and Amp"
     echo "  ./install.sh -t all                    # Install for all targets"
+    echo "  ./install.sh --skip-skills             # Install plugin base only, no skills"
     exit 0
 fi
 
@@ -71,8 +81,8 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         OS="ubuntu"
         echo -e "${GREEN}✓${NC} Detected: Ubuntu/Debian"
     else
-        echo -e "${RED}❌ Unsupported Linux distribution${NC}"
-        exit 1
+        OS="linux"
+        echo -e "${GREEN}✓${NC} Detected: Linux"
     fi
     CONFIG_DIR="$HOME/.config"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
@@ -105,31 +115,6 @@ get_config_dir() {
             ;;
         opencode)
             echo "$CONFIG_DIR/opencode"
-            ;;
-    esac
-}
-
-# Function to get skills dir for target
-get_skills_dir() {
-    local target=$1
-    echo "$(get_config_dir "$target")/skills"
-}
-
-# Function to get instructions filename for target
-get_instructions_filename() {
-    local target=$1
-    case $target in
-        claude-code)
-            echo "CLAUDE.md"
-            ;;
-        amp)
-            echo "AGENTS.md"
-            ;;
-        antigravity)
-            echo "GEMINI.md"
-            ;;
-        opencode)
-            echo "opencode.json"
             ;;
     esac
 }
@@ -236,24 +221,16 @@ if [[ $REPLY =~ ^[Nn]$ ]]; then
 fi
 echo ""
 
-# Install for each target
+# Install plugin base for each target
 for target in "${SELECTED_TARGETS[@]}"; do
     display_name=$(get_display_name "$target")
     config_dir=$(get_config_dir "$target")
-    skills_dir=$(get_skills_dir "$target")
 
-    echo -e "${CYAN}📦 Installing for $display_name...${NC}"
+    echo -e "${CYAN}📦 Installing plugin base for $display_name...${NC}"
 
     # Create directories
     mkdir -p "$config_dir"
-    mkdir -p "$skills_dir"
     mkdir -p "$config_dir/output-styles"
-
-    # Copy skills
-    if [ -d "$PLUGIN_SOURCE/skills" ]; then
-        cp -r "$PLUGIN_SOURCE/skills/"* "$skills_dir/" 2>/dev/null || true
-        echo -e "   ${GREEN}✓${NC} Skills installed to $skills_dir"
-    fi
 
     # Copy output style
     if [ -f "$PLUGIN_SOURCE/output-styles/rhinolabs.md" ]; then
@@ -261,19 +238,14 @@ for target in "${SELECTED_TARGETS[@]}"; do
         echo -e "   ${GREEN}✓${NC} Output style installed"
     fi
 
-    # Copy MCP config (only if it doesn't exist)
-    mcp_filename=$(get_mcp_filename "$target")
-    if [ -f "$PLUGIN_SOURCE/.mcp.json" ] && [ ! -f "$config_dir/$mcp_filename" ]; then
-        cp "$PLUGIN_SOURCE/.mcp.json" "$config_dir/$mcp_filename"
-        echo -e "   ${GREEN}✓${NC} MCP config installed"
-    elif [ -f "$config_dir/$mcp_filename" ]; then
-        echo -e "   ${YELLOW}⏭️${NC}  MCP config exists, skipped"
-    fi
+    # NOTE: MCP config is NOT deployed by this script.
+    # MCP servers (including rhinolabs-rag) should be configured via the GUI.
+    # See docs/RAG_MCP_ARCHITECTURE.md for details.
 
     # Target-specific installations
     case $target in
         claude-code)
-            # Copy Claude Code plugin
+            # Copy Claude Code plugin (without skills - those come from CLI)
             PLUGIN_DIR="$HOME/.config/claude-code/plugins"
             if [ "$OS" == "macos" ]; then
                 PLUGIN_DIR="$HOME/Library/Application Support/Claude Code/plugins"
@@ -285,10 +257,18 @@ for target in "${SELECTED_TARGETS[@]}"; do
             fi
 
             mkdir -p "$PLUGIN_DIR"
-            cp -r "$PLUGIN_SOURCE" "$PLUGIN_DIR/rhinolabs-claude"
+
+            # Copy plugin structure (excluding skills directory)
+            mkdir -p "$PLUGIN_DIR/rhinolabs-claude"
+            cp -r "$PLUGIN_SOURCE/.claude-plugin" "$PLUGIN_DIR/rhinolabs-claude/"
+            cp -r "$PLUGIN_SOURCE/output-styles" "$PLUGIN_DIR/rhinolabs-claude/" 2>/dev/null || true
+            [ -f "$PLUGIN_SOURCE/settings.json" ] && cp "$PLUGIN_SOURCE/settings.json" "$PLUGIN_DIR/rhinolabs-claude/"
+            # NOTE: .mcp.json is NOT copied - MCP config is managed via GUI
+            [ -f "$PLUGIN_SOURCE/statusline.sh" ] && cp "$PLUGIN_SOURCE/statusline.sh" "$PLUGIN_DIR/rhinolabs-claude/"
+
             echo -e "   ${GREEN}✓${NC} Plugin installed to $PLUGIN_DIR/rhinolabs-claude"
 
-            # Copy statusline script
+            # Copy statusline script to user config
             if [ -f "$PLUGIN_SOURCE/statusline.sh" ]; then
                 cp "$PLUGIN_SOURCE/statusline.sh" "$config_dir/"
                 chmod +x "$config_dir/statusline.sh"
@@ -353,8 +333,51 @@ for target in "${SELECTED_TARGETS[@]}"; do
     echo ""
 done
 
+echo -e "${GREEN}✅ Plugin base installation complete!${NC}"
+echo ""
+
+# Install skills via CLI if available
+if ! $SKIP_SKILLS; then
+    echo -e "${CYAN}📚 Installing skills via CLI...${NC}"
+    echo ""
+
+    if command -v rhinolabs-ai &> /dev/null; then
+        # Build target arguments for CLI
+        TARGET_ARGS=""
+        for target in "${SELECTED_TARGETS[@]}"; do
+            TARGET_ARGS="$TARGET_ARGS --target $target"
+        done
+
+        echo -e "   ${CYAN}→${NC} Running: rhinolabs-ai profile install main $TARGET_ARGS"
+        echo ""
+
+        # Run the CLI to install the main profile's skills
+        if rhinolabs-ai profile install main $TARGET_ARGS; then
+            echo ""
+            echo -e "   ${GREEN}✓${NC} Skills installed via main profile"
+        else
+            echo ""
+            echo -e "   ${YELLOW}⚠️${NC}  CLI skill installation failed"
+            echo -e "   ${YELLOW}→${NC}  You can manually run: rhinolabs-ai profile install main"
+        fi
+    else
+        echo -e "   ${YELLOW}⚠️${NC}  rhinolabs-ai CLI not found"
+        echo ""
+        echo "   To install skills, first install the CLI:"
+        echo ""
+        echo "   Option 1: Download from releases"
+        echo "     Visit the Releases page and download for your platform"
+        echo ""
+        echo "   Option 2: Build from source"
+        echo "     cd rhinolabs-ai/cli && cargo build --release"
+        echo ""
+        echo "   Then run:"
+        echo "     rhinolabs-ai profile install main --target all"
+        echo ""
+    fi
+fi
+
 # Summary
-echo -e "${GREEN}✅ Installation complete!${NC}"
 echo ""
 echo "Installed for:"
 for target in "${SELECTED_TARGETS[@]}"; do
@@ -365,5 +388,9 @@ done
 echo ""
 echo "Next steps:"
 echo "  1. Restart your AI coding assistant(s)"
-echo "  2. The plugin/skills will be automatically loaded"
+if ! command -v rhinolabs-ai &> /dev/null && ! $SKIP_SKILLS; then
+    echo "  2. Install rhinolabs-ai CLI to manage skills and profiles"
+else
+    echo "  2. The plugin and skills will be automatically loaded"
+fi
 echo ""

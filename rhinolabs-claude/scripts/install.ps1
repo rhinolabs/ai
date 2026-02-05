@@ -1,10 +1,16 @@
 # Rhinolabs AI Plugin Installer for Windows
 # Requires PowerShell 5.1+
 # Targets: Claude Code, Amp, Antigravity (Gemini), OpenCode
+#
+# This script installs the plugin base configuration.
+# Skills are installed via the rhinolabs-ai CLI using the "main" profile.
 
 param(
     [Parameter()]
     [string[]]$Target,
+
+    [Parameter()]
+    [switch]$SkipSkills,
 
     [Parameter()]
     [switch]$Help
@@ -24,6 +30,7 @@ if ($Help) {
     Write-Host "Options:"
     Write-Host "  -Target TARGET    Install for specific target (can be used multiple times)"
     Write-Host "                    Available: claude-code, amp, antigravity, opencode, all"
+    Write-Host "  -SkipSkills       Skip skill installation (plugin base only)"
     Write-Host "  -Help             Show this help message"
     Write-Host ""
     Write-Host "Examples:"
@@ -31,6 +38,7 @@ if ($Help) {
     Write-Host "  .\install.ps1 -Target claude-code          # Install for Claude Code only"
     Write-Host "  .\install.ps1 -Target claude-code,amp      # Install for Claude Code and Amp"
     Write-Host "  .\install.ps1 -Target all                  # Install for all targets"
+    Write-Host "  .\install.ps1 -SkipSkills                  # Install plugin base only, no skills"
     exit 0
 }
 
@@ -53,11 +61,6 @@ function Get-ConfigDir {
         "antigravity" { return "$env:USERPROFILE\.gemini\antigravity" }
         "opencode" { return "$env:APPDATA\opencode" }
     }
-}
-
-function Get-SkillsDir {
-    param([string]$TargetName)
-    return "$(Get-ConfigDir $TargetName)\skills"
 }
 
 function Get-McpFilename {
@@ -83,6 +86,15 @@ function Get-DisplayName {
 function Test-TargetInstalled {
     param([string]$TargetName)
     return Test-Path (Get-ConfigDir $TargetName)
+}
+
+function Test-CliAvailable {
+    try {
+        $null = Get-Command rhinolabs-ai -ErrorAction Stop
+        return $true
+    } catch {
+        return $false
+    }
 }
 
 # Parse targets
@@ -156,24 +168,16 @@ if ($confirm -eq "n" -or $confirm -eq "N") {
 }
 Write-Host ""
 
-# Install for each target
+# Install plugin base for each target
 foreach ($t in $SelectedTargets) {
     $displayName = Get-DisplayName $t
     $configDir = Get-ConfigDir $t
-    $skillsDir = Get-SkillsDir $t
 
-    Write-Host "📦 Installing for $displayName..." -ForegroundColor Cyan
+    Write-Host "📦 Installing plugin base for $displayName..." -ForegroundColor Cyan
 
     # Create directories
     New-Item -ItemType Directory -Path $configDir -Force | Out-Null
-    New-Item -ItemType Directory -Path $skillsDir -Force | Out-Null
     New-Item -ItemType Directory -Path "$configDir\output-styles" -Force | Out-Null
-
-    # Copy skills
-    if (Test-Path "$PluginSource\skills") {
-        Copy-Item -Path "$PluginSource\skills\*" -Destination $skillsDir -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "   ✓ Skills installed to $skillsDir" -ForegroundColor Green
-    }
 
     # Copy output style
     if (Test-Path "$PluginSource\output-styles\rhinolabs.md") {
@@ -181,19 +185,14 @@ foreach ($t in $SelectedTargets) {
         Write-Host "   ✓ Output style installed" -ForegroundColor Green
     }
 
-    # Copy MCP config (only if it doesn't exist)
-    $mcpFilename = Get-McpFilename $t
-    if ((Test-Path "$PluginSource\.mcp.json") -and -not (Test-Path "$configDir\$mcpFilename")) {
-        Copy-Item -Path "$PluginSource\.mcp.json" -Destination "$configDir\$mcpFilename" -Force
-        Write-Host "   ✓ MCP config installed" -ForegroundColor Green
-    } elseif (Test-Path "$configDir\$mcpFilename") {
-        Write-Host "   ⏭️  MCP config exists, skipped" -ForegroundColor Yellow
-    }
+    # NOTE: MCP config is NOT deployed by this script.
+    # MCP servers (including rhinolabs-rag) should be configured via the GUI.
+    # See docs/RAG_MCP_ARCHITECTURE.md for details.
 
     # Target-specific installations
     switch ($t) {
         "claude-code" {
-            # Copy Claude Code plugin
+            # Copy Claude Code plugin (without skills - those come from CLI)
             $PluginDir = "$env:APPDATA\Claude Code\plugins"
 
             if (Test-Path "$PluginDir\rhinolabs-claude") {
@@ -201,8 +200,21 @@ foreach ($t in $SelectedTargets) {
                 Remove-Item -Path "$PluginDir\rhinolabs-claude" -Recurse -Force
             }
 
-            New-Item -ItemType Directory -Path $PluginDir -Force | Out-Null
-            Copy-Item -Path $PluginSource -Destination "$PluginDir\rhinolabs-claude" -Recurse -Force
+            New-Item -ItemType Directory -Path "$PluginDir\rhinolabs-claude" -Force | Out-Null
+
+            # Copy plugin structure (excluding skills directory)
+            Copy-Item -Path "$PluginSource\.claude-plugin" -Destination "$PluginDir\rhinolabs-claude\" -Recurse -Force
+            if (Test-Path "$PluginSource\output-styles") {
+                Copy-Item -Path "$PluginSource\output-styles" -Destination "$PluginDir\rhinolabs-claude\" -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            if (Test-Path "$PluginSource\settings.json") {
+                Copy-Item -Path "$PluginSource\settings.json" -Destination "$PluginDir\rhinolabs-claude\" -Force
+            }
+            # NOTE: .mcp.json is NOT copied - MCP config is managed via GUI
+            if (Test-Path "$PluginSource\statusline.sh") {
+                Copy-Item -Path "$PluginSource\statusline.sh" -Destination "$PluginDir\rhinolabs-claude\" -Force
+            }
+
             Write-Host "   ✓ Plugin installed to $PluginDir\rhinolabs-claude" -ForegroundColor Green
 
             # Handle settings.json (merge instead of overwrite)
@@ -260,8 +272,53 @@ foreach ($t in $SelectedTargets) {
     Write-Host ""
 }
 
+Write-Host "✅ Plugin base installation complete!" -ForegroundColor Green
+Write-Host ""
+
+# Install skills via CLI if available
+if (-not $SkipSkills) {
+    Write-Host "📚 Installing skills via CLI..." -ForegroundColor Cyan
+    Write-Host ""
+
+    if (Test-CliAvailable) {
+        # Build target arguments for CLI
+        $targetArgs = @()
+        foreach ($t in $SelectedTargets) {
+            $targetArgs += "--target"
+            $targetArgs += $t
+        }
+
+        Write-Host "   → Running: rhinolabs-ai profile install main $($targetArgs -join ' ')" -ForegroundColor Cyan
+        Write-Host ""
+
+        # Run the CLI to install the main profile's skills
+        try {
+            & rhinolabs-ai profile install main @targetArgs
+            Write-Host ""
+            Write-Host "   ✓ Skills installed via main profile" -ForegroundColor Green
+        } catch {
+            Write-Host ""
+            Write-Host "   ⚠️  CLI skill installation failed" -ForegroundColor Yellow
+            Write-Host "   →  You can manually run: rhinolabs-ai profile install main" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   ⚠️  rhinolabs-ai CLI not found" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "   To install skills, first install the CLI:"
+        Write-Host ""
+        Write-Host "   Option 1: Download from releases"
+        Write-Host "     Visit the Releases page and download for your platform"
+        Write-Host ""
+        Write-Host "   Option 2: Build from source"
+        Write-Host "     cd rhinolabs-ai\cli; cargo build --release"
+        Write-Host ""
+        Write-Host "   Then run:"
+        Write-Host "     rhinolabs-ai profile install main --target all"
+        Write-Host ""
+    }
+}
+
 # Summary
-Write-Host "✅ Installation complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Installed for:"
 foreach ($t in $SelectedTargets) {
@@ -272,5 +329,9 @@ foreach ($t in $SelectedTargets) {
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Restart your AI coding assistant(s)"
-Write-Host "  2. The plugin/skills will be automatically loaded"
+if (-not (Test-CliAvailable) -and -not $SkipSkills) {
+    Write-Host "  2. Install rhinolabs-ai CLI to manage skills and profiles"
+} else {
+    Write-Host "  2. The plugin and skills will be automatically loaded"
+}
 Write-Host ""

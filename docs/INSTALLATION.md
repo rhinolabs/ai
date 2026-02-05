@@ -19,15 +19,28 @@ Before installing, ensure you have:
 - Git installed
 - Internet connection for initial setup
 - Terminal/PowerShell access
+- **rhinolabs-ai CLI** (optional, but required for skill management)
 
 ## Supported Platforms
 
 | Platform | Version | Status |
 |----------|---------|--------|
-| Ubuntu | 20.04+ | ✅ Supported |
-| Arch Linux | Latest | ✅ Supported |
-| macOS | 11+ | ✅ Supported |
-| Windows | 10/11 | ✅ Supported |
+| Ubuntu | 20.04+ | Supported |
+| Arch Linux | Latest | Supported |
+| macOS | 11+ | Supported |
+| Windows | 10/11 | Supported |
+
+## Installation Architecture
+
+The installation process has two components:
+
+1. **Plugin Base** (via install script): Output styles, MCP config, settings, plugin structure
+2. **Skills** (via CLI): Installed from the "main" profile using `rhinolabs-ai profile install main`
+
+This separation allows:
+- Profile-based skill management
+- Selective skill installation
+- Easy updates without reinstalling everything
 
 ## Installation Steps
 
@@ -35,7 +48,7 @@ Before installing, ensure you have:
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>/rhinolabs-ai.git
+   git clone <repo-url>
    cd rhinolabs-ai
    ```
 
@@ -67,6 +80,9 @@ Before installing, ensure you have:
 
    # All targets
    ./install.sh -t all
+
+   # Plugin base only (no skills)
+   ./install.sh --skip-skills
    ```
 
 5. **Restart your AI assistant(s)**
@@ -75,7 +91,7 @@ Before installing, ensure you have:
 
 1. **Clone the repository**
    ```powershell
-   git clone <your-repo-url>/rhinolabs-ai.git
+   git clone <repo-url>
    cd rhinolabs-ai
    ```
 
@@ -101,6 +117,9 @@ Before installing, ensure you have:
 
    # All targets
    .\install.ps1 -Target all
+
+   # Plugin base only (no skills)
+   .\install.ps1 -SkipSkills
    ```
 
 4. **Restart your AI assistant(s)**
@@ -111,6 +130,53 @@ If you get a script execution error on Windows:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .\install.ps1
+```
+
+## Installing the CLI
+
+The `rhinolabs-ai` CLI is required for skill management. If not installed, the script will show instructions.
+
+### Option 1: Download from Releases
+
+Visit the Releases page and download the binary for your platform.
+
+### Option 2: Build from Source
+
+```bash
+cd rhinolabs-ai/cli
+cargo build --release
+# Binary at: target/release/rhinolabs-ai
+```
+
+### Option 3: Homebrew (macOS/Linux)
+
+```bash
+brew tap <owner>/tap
+brew install rhinolabs-ai
+```
+
+## Managing Skills with the CLI
+
+After installing the CLI, you can manage skills using profiles:
+
+```bash
+# Install main profile skills for all targets
+rhinolabs-ai profile install main --target all
+
+# Install for specific target
+rhinolabs-ai profile install main --target claude-code
+
+# List available profiles
+rhinolabs-ai profile list
+
+# Show profile details
+rhinolabs-ai profile show main
+
+# Update installed skills
+rhinolabs-ai profile update
+
+# Uninstall profile
+rhinolabs-ai profile uninstall --target all
 ```
 
 ## Installation Paths
@@ -126,36 +192,43 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ### Skills Directories
 
-Skills are installed to `<config-dir>/skills/` for each target.
+Skills are installed to `<config-dir>/skills/` for each target by the CLI.
 
 ### Claude Code Plugin Directory
 
-The Claude Code plugin is additionally installed to:
+The Claude Code plugin base is installed to:
 - **Linux**: `~/.config/claude-code/plugins/rhinolabs-claude`
 - **macOS**: `~/Library/Application Support/Claude Code/plugins/rhinolabs-claude`
 - **Windows**: `%APPDATA%\Claude Code\plugins\rhinolabs-claude`
 
 ## What Gets Installed
 
+### Plugin Base (via install script)
+
 For **all targets**:
-- Skills → `<config-dir>/skills/`
-- Output styles → `<config-dir>/output-styles/`
-- MCP config → `<config-dir>/<mcp-filename>`
+- Output styles `<config-dir>/output-styles/`
+
+**Note**: MCP configuration is NOT deployed by the install script. Configure MCP servers via the GUI (MCP Servers page). See [RAG_MCP_ARCHITECTURE.md](./RAG_MCP_ARCHITECTURE.md) for details.
 
 For **Claude Code** specifically:
-- Plugin files → `<plugins-dir>/rhinolabs-claude/`
-- Settings → `~/.claude/settings.json`
-- Status line script → `~/.claude/statusline.sh`
+- Plugin structure `<plugins-dir>/rhinolabs-claude/`
+- Settings `~/.claude/settings.json` (merged with existing)
+- Status line script `~/.claude/statusline.sh`
+
+### Skills (via CLI)
+
+Skills from the "main" profile are installed to `<config-dir>/skills/` for each target.
 
 ## Verification
 
 ### Claude Code
 
 1. Open Claude Code
-2. Go to Settings → Plugins
+2. Go to Settings Plugins
 3. Look for "rhinolabs-claude" in the list
 4. Ensure it's enabled
 5. Verify `.claude-plugin/plugin.json` exists in the plugin directory
+6. Check that skills are present in `~/.claude/skills/`
 
 ### Other Targets
 
@@ -180,10 +253,23 @@ For **Claude Code** specifically:
 **Issue**: Skills don't appear in your AI assistant.
 
 **Solutions**:
-- Verify the config directory exists for your target
-- Check that skills were copied to `<config-dir>/skills/`
+- Ensure `rhinolabs-ai` CLI is installed
+- Run `rhinolabs-ai profile install main --target <your-target>`
+- Verify skills were installed to `<config-dir>/skills/`
 - Restart your AI assistant
 - Check file permissions
+
+### CLI not found
+
+**Issue**: The install script reports "rhinolabs-ai CLI not found".
+
+**Solutions**:
+- Install the CLI (see "Installing the CLI" section)
+- Add the CLI to your PATH
+- Run skill installation manually after installing CLI:
+  ```bash
+  rhinolabs-ai profile install main --target all
+  ```
 
 ### Permission errors (Linux/macOS)
 
@@ -201,8 +287,9 @@ chmod +x install.sh
 
 **Solutions**:
 - The installer will prompt before overwriting existing files
+- Settings are merged (your settings take precedence)
+- MCP config is skipped if it already exists
 - Backup your existing configs before installing
-- Use the interactive mode to see what will be installed
 
 ## Updating
 
@@ -220,7 +307,12 @@ To update the plugin to the latest version:
    ./install.sh -t <your-targets>  # or .\install.ps1 on Windows
    ```
 
-3. **Restart your AI assistant(s)**
+3. **Update skills via CLI**
+   ```bash
+   rhinolabs-ai profile update
+   ```
+
+4. **Restart your AI assistant(s)**
 
 ## Uninstallation
 
@@ -277,4 +369,4 @@ For installation issues:
 
 ---
 
-**Last Updated**: 2026-02-05
+**Last Updated**: 2026-02-06
