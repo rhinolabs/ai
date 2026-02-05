@@ -134,26 +134,57 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ## Installing the CLI
 
-The `rhinolabs-ai` CLI is required for skill management. If not installed, the script will show instructions.
+The `rhinolabs-ai` CLI is required for skill management. If not installed, the install script will show instructions.
 
-### Option 1: Download from Releases
+### Option 1: Download from Releases (Recommended)
 
-Visit the Releases page and download the binary for your platform.
+1. Go to the [Releases page](../../releases/latest)
+
+2. Download the binary for your platform:
+
+   | Platform | Binary |
+   |----------|--------|
+   | macOS (Apple Silicon) | `rhinolabs-ai-darwin-arm64` |
+   | macOS (Intel) | `rhinolabs-ai-darwin-x64` |
+   | Linux (x64) | `rhinolabs-ai-linux-x64` |
+   | Linux (ARM64) | `rhinolabs-ai-linux-arm64` |
+   | Windows | `rhinolabs-ai-windows-x64.exe` |
+
+3. Make executable and move to PATH:
+
+   **macOS/Linux:**
+   ```bash
+   chmod +x rhinolabs-ai-*
+   sudo mv rhinolabs-ai-* /usr/local/bin/rhinolabs-ai
+   ```
+
+   **Windows (PowerShell as Admin):**
+   ```powershell
+   # Move to a directory in your PATH, e.g.:
+   Move-Item rhinolabs-ai-windows-x64.exe C:\Windows\rhinolabs-ai.exe
+   ```
+
+4. Verify installation:
+   ```bash
+   rhinolabs-ai --version
+   ```
 
 ### Option 2: Build from Source
+
+Requires [Rust](https://rustup.rs/) installed.
 
 ```bash
 cd rhinolabs-ai/cli
 cargo build --release
+
 # Binary at: target/release/rhinolabs-ai
+# Optionally move to PATH:
+sudo cp target/release/rhinolabs-ai /usr/local/bin/
 ```
 
-### Option 3: Homebrew (macOS/Linux)
+### Short Alias
 
-```bash
-brew tap <owner>/tap
-brew install rhinolabs-ai
-```
+The releases also include `rlai`, a short alias for `rhinolabs-ai`. Download and install it the same way if you prefer shorter commands.
 
 ## Managing Skills with the CLI
 
