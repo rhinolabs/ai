@@ -1,4 +1,17 @@
 {
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'CONTEXT COMPACTED: Continue working on the assigned task, but DO NOT take irreversible actions (commits, push, file creation, destructive commands) without explicit user confirmation.'"
+          }
+        ]
+      }
+    ]
+  },
   "outputStyle": "Rhinolabs",
   "env": {
     "ENABLE_TOOL_SEARCH": "true"
