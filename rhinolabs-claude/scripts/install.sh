@@ -295,17 +295,52 @@ for target in "${SELECTED_TARGETS[@]}"; do
                 echo -e "   ${GREEN}✓${NC} Status line script installed"
             fi
 
-            # Handle settings.json
+            # Handle settings.json (merge instead of overwrite)
             if [ -f "$PLUGIN_SOURCE/settings.json" ]; then
                 if [ -f "$config_dir/settings.json" ]; then
-                    echo -e "   ${YELLOW}⚠️${NC}  Existing settings.json found"
-                    read -p "      Overwrite? (y/N): " -n 1 -r
-                    echo
-                    if [[ $REPLY =~ ^[Yy]$ ]]; then
-                        cp "$PLUGIN_SOURCE/settings.json" "$config_dir/"
-                        echo -e "   ${GREEN}✓${NC} Settings installed"
+                    # Check if jq is available for merging
+                    if command -v jq &> /dev/null; then
+                        echo -e "   ${CYAN}→${NC} Merging settings.json..."
+                        # Deep merge: existing settings take precedence for scalar values,
+                        # arrays are concatenated and deduplicated
+                        jq -s '
+                            def deep_merge:
+                                if type == "array" then
+                                    .[0] as $a | .[1] as $b |
+                                    if ($a | type) == "array" and ($b | type) == "array" then
+                                        ($a + $b) | unique
+                                    else
+                                        $b // $a
+                                    end
+                                elif type == "object" then
+                                    .[0] as $a | .[1] as $b |
+                                    ($a | keys) + ($b | keys) | unique | map(
+                                        . as $key |
+                                        if ($a[$key] | type) == "object" and ($b[$key] | type) == "object" then
+                                            {($key): ([$a[$key], $b[$key]] | deep_merge)}
+                                        elif ($a[$key] | type) == "array" and ($b[$key] | type) == "array" then
+                                            {($key): ([$a[$key], $b[$key]] | deep_merge)}
+                                        else
+                                            {($key): ($a[$key] // $b[$key])}
+                                        end
+                                    ) | add
+                                else
+                                    .[0] // .[1]
+                                end;
+                            deep_merge
+                        ' "$config_dir/settings.json" "$PLUGIN_SOURCE/settings.json" > "$config_dir/settings.json.tmp"
+                        mv "$config_dir/settings.json.tmp" "$config_dir/settings.json"
+                        echo -e "   ${GREEN}✓${NC} Settings merged (your settings preserved)"
                     else
-                        echo -e "   ${YELLOW}⏭️${NC}  Settings skipped"
+                        echo -e "   ${YELLOW}⚠️${NC}  jq not found, cannot merge settings"
+                        read -p "      Overwrite existing settings? (y/N): " -n 1 -r
+                        echo
+                        if [[ $REPLY =~ ^[Yy]$ ]]; then
+                            cp "$PLUGIN_SOURCE/settings.json" "$config_dir/"
+                            echo -e "   ${GREEN}✓${NC} Settings installed"
+                        else
+                            echo -e "   ${YELLOW}⏭️${NC}  Settings skipped"
+                        fi
                     fi
                 else
                     cp "$PLUGIN_SOURCE/settings.json" "$config_dir/"

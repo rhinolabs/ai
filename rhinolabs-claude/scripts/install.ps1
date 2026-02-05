@@ -205,17 +205,50 @@ foreach ($t in $SelectedTargets) {
             Copy-Item -Path $PluginSource -Destination "$PluginDir\rhinolabs-claude" -Recurse -Force
             Write-Host "   ✓ Plugin installed to $PluginDir\rhinolabs-claude" -ForegroundColor Green
 
-            # Handle settings.json
+            # Handle settings.json (merge instead of overwrite)
             if (Test-Path "$PluginSource\settings.json") {
                 if (Test-Path "$configDir\settings.json") {
-                    Write-Host "   ⚠️  Existing settings.json found" -ForegroundColor Yellow
-                    $overwrite = Read-Host "      Overwrite? (y/N)"
-                    if ($overwrite -eq "y" -or $overwrite -eq "Y") {
-                        Copy-Item -Path "$PluginSource\settings.json" -Destination $configDir -Force
-                        Write-Host "   ✓ Settings installed" -ForegroundColor Green
-                    } else {
-                        Write-Host "   ⏭️  Settings skipped" -ForegroundColor Yellow
+                    Write-Host "   → Merging settings.json..." -ForegroundColor Cyan
+
+                    # Load both JSON files
+                    $existing = Get-Content "$configDir\settings.json" -Raw | ConvertFrom-Json -AsHashtable
+                    $new = Get-Content "$PluginSource\settings.json" -Raw | ConvertFrom-Json -AsHashtable
+
+                    # Deep merge function (new values only added if key doesn't exist)
+                    function Merge-Hashtable {
+                        param($Base, $Override)
+                        $result = @{}
+
+                        # Add all keys from base
+                        foreach ($key in $Base.Keys) {
+                            if ($Override.ContainsKey($key)) {
+                                if ($Base[$key] -is [hashtable] -and $Override[$key] -is [hashtable]) {
+                                    $result[$key] = Merge-Hashtable $Base[$key] $Override[$key]
+                                } elseif ($Base[$key] -is [array] -and $Override[$key] -is [array]) {
+                                    # Merge arrays and remove duplicates
+                                    $result[$key] = @($Base[$key] + $Override[$key] | Select-Object -Unique)
+                                } else {
+                                    # Keep existing value
+                                    $result[$key] = $Base[$key]
+                                }
+                            } else {
+                                $result[$key] = $Base[$key]
+                            }
+                        }
+
+                        # Add keys from override that don't exist in base
+                        foreach ($key in $Override.Keys) {
+                            if (-not $Base.ContainsKey($key)) {
+                                $result[$key] = $Override[$key]
+                            }
+                        }
+
+                        return $result
                     }
+
+                    $merged = Merge-Hashtable $existing $new
+                    $merged | ConvertTo-Json -Depth 10 | Set-Content "$configDir\settings.json" -Encoding UTF8
+                    Write-Host "   ✓ Settings merged (your settings preserved)" -ForegroundColor Green
                 } else {
                     Copy-Item -Path "$PluginSource\settings.json" -Destination $configDir -Force
                     Write-Host "   ✓ Settings installed" -ForegroundColor Green
