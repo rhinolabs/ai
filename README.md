@@ -483,11 +483,26 @@ cd core && cargo build
 ### Testing
 
 ```bash
-# Unit tests
-cargo test --workspace
+# Using Makefile (recommended)
+make test        # Run ALL tests (Rust + E2E)
+make test-rust   # Run Rust tests only
+make test-e2e    # Run E2E tests only
+make test-quick  # Quick tests (same as test-rust)
 
-# GUI E2E tests
-cd gui/tests && pnpm test
+# Or manually
+cargo test --workspace          # Rust unit tests
+cd gui/tests && pnpm test       # GUI E2E tests
+```
+
+### Available Make Commands
+
+```bash
+make help        # Show all available commands
+make setup-hooks # Configure git hooks (run after clone)
+make install     # Install all dependencies
+make build       # Build all components
+make run         # Run Tauri app in dev mode
+make clean       # Clean build artifacts
 ```
 
 ## Documentation

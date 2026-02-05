@@ -1,143 +1,334 @@
 #!/bin/bash
 
-# Rhinolabs Claude Plugin Installer
+# Rhinolabs AI Plugin Installer
 # Supports: Ubuntu, Arch Linux, macOS
+# Targets: Claude Code, Amp, Antigravity (Gemini), OpenCode
 
 set -e
 
-echo "🚀 Rhinolabs Claude Plugin Installer"
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}🚀 Rhinolabs AI Plugin Installer${NC}"
 echo "===================================="
 echo ""
+
+# Available targets
+AVAILABLE_TARGETS=("claude-code" "amp" "antigravity" "opencode")
+
+# Parse arguments
+SELECTED_TARGETS=()
+SHOW_HELP=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -t|--target)
+            if [[ "$2" == "all" ]]; then
+                SELECTED_TARGETS=("${AVAILABLE_TARGETS[@]}")
+            else
+                SELECTED_TARGETS+=("$2")
+            fi
+            shift 2
+            ;;
+        -h|--help)
+            SHOW_HELP=true
+            shift
+            ;;
+        *)
+            echo -e "${RED}❌ Unknown option: $1${NC}"
+            SHOW_HELP=true
+            shift
+            ;;
+    esac
+done
+
+if $SHOW_HELP; then
+    echo "Usage: ./install.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -t, --target TARGET   Install for specific target (can be used multiple times)"
+    echo "                        Available: claude-code, amp, antigravity, opencode, all"
+    echo "  -h, --help            Show this help message"
+    echo ""
+    echo "Examples:"
+    echo "  ./install.sh                           # Interactive mode"
+    echo "  ./install.sh -t claude-code            # Install for Claude Code only"
+    echo "  ./install.sh -t claude-code -t amp     # Install for Claude Code and Amp"
+    echo "  ./install.sh -t all                    # Install for all targets"
+    exit 0
+fi
 
 # Detect OS
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     if [ -f /etc/arch-release ]; then
         OS="arch"
-        echo "✓ Detected: Arch Linux"
+        echo -e "${GREEN}✓${NC} Detected: Arch Linux"
     elif [ -f /etc/lsb-release ] || [ -f /etc/debian_version ]; then
         OS="ubuntu"
-        echo "✓ Detected: Ubuntu/Debian"
+        echo -e "${GREEN}✓${NC} Detected: Ubuntu/Debian"
     else
-        echo "❌ Unsupported Linux distribution"
+        echo -e "${RED}❌ Unsupported Linux distribution${NC}"
         exit 1
     fi
-    PLUGIN_DIR="$HOME/.config/claude-code/plugins"
-    CLAUDE_CONFIG_DIR="$HOME/.claude"
+    CONFIG_DIR="$HOME/.config"
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     OS="macos"
-    echo "✓ Detected: macOS"
-    PLUGIN_DIR="$HOME/Library/Application Support/Claude Code/plugins"
-    CLAUDE_CONFIG_DIR="$HOME/.claude"
+    echo -e "${GREEN}✓${NC} Detected: macOS"
+    CONFIG_DIR="$HOME/.config"
 else
-    echo "❌ Unsupported operating system: $OSTYPE"
+    echo -e "${RED}❌ Unsupported operating system: $OSTYPE${NC}"
     exit 1
 fi
 
 echo ""
 
-# Check if Claude Code is installed
-if [ "$OS" == "macos" ]; then
-    if [ ! -d "$HOME/Library/Application Support/Claude Code" ]; then
-        echo "⚠️  Warning: Claude Code installation not found"
-        echo "   Please install Claude Code first"
-        read -p "   Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-    fi
-else
-    if [ ! -d "$HOME/.config/claude-code" ]; then
-        echo "⚠️  Warning: Claude Code installation not found"
-        echo "   Please install Claude Code first"
-        read -p "   Continue anyway? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            exit 1
-        fi
-    fi
-fi
-
-# Check if plugin already exists
-if [ -d "$PLUGIN_DIR/rhinolabs-claude" ]; then
-    echo "⚠️  Existing plugin found at: $PLUGIN_DIR/rhinolabs-claude"
-    read -p "   Overwrite? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "❌ Installation cancelled"
-        exit 1
-    fi
-    echo "🗑️  Removing existing plugin..."
-    rm -rf "$PLUGIN_DIR/rhinolabs-claude"
-fi
-
-# Create directories
-echo "📁 Creating directories..."
-mkdir -p "$PLUGIN_DIR"
-mkdir -p "$CLAUDE_CONFIG_DIR/output-styles"
-
 # Get script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PLUGIN_SOURCE="$( cd "$SCRIPT_DIR/.." && pwd )"
 
-# Copy plugin files
-echo "📦 Installing plugin files..."
-cp -r "$PLUGIN_SOURCE" "$PLUGIN_DIR/rhinolabs-claude"
+# Function to get config dir for target
+get_config_dir() {
+    local target=$1
+    case $target in
+        claude-code)
+            echo "$HOME/.claude"
+            ;;
+        amp)
+            echo "$CONFIG_DIR/agents"
+            ;;
+        antigravity)
+            echo "$HOME/.gemini/antigravity"
+            ;;
+        opencode)
+            echo "$CONFIG_DIR/opencode"
+            ;;
+    esac
+}
 
-# Install global configurations
-echo "⚙️  Installing global configurations..."
+# Function to get skills dir for target
+get_skills_dir() {
+    local target=$1
+    echo "$(get_config_dir "$target")/skills"
+}
 
-# Copy output style
-if [ -f "$PLUGIN_SOURCE/output-styles/rhinolabs.md" ]; then
-    cp "$PLUGIN_SOURCE/output-styles/rhinolabs.md" "$CLAUDE_CONFIG_DIR/output-styles/"
-    echo "   ✓ Output style installed"
-fi
+# Function to get instructions filename for target
+get_instructions_filename() {
+    local target=$1
+    case $target in
+        claude-code)
+            echo "CLAUDE.md"
+            ;;
+        amp)
+            echo "AGENTS.md"
+            ;;
+        antigravity)
+            echo "GEMINI.md"
+            ;;
+        opencode)
+            echo "opencode.json"
+            ;;
+    esac
+}
 
-# Copy statusline script
-if [ -f "$PLUGIN_SOURCE/statusline.sh" ]; then
-    cp "$PLUGIN_SOURCE/statusline.sh" "$CLAUDE_CONFIG_DIR/"
-    chmod +x "$CLAUDE_CONFIG_DIR/statusline.sh"
-    echo "   ✓ Status line script installed"
-fi
+# Function to get MCP config filename for target
+get_mcp_filename() {
+    local target=$1
+    case $target in
+        claude-code)
+            echo ".mcp.json"
+            ;;
+        amp)
+            echo "settings.json"
+            ;;
+        antigravity)
+            echo "config.json"
+            ;;
+        opencode)
+            echo "opencode.json"
+            ;;
+    esac
+}
 
-# Handle settings.json (ask before overwriting)
-if [ -f "$PLUGIN_SOURCE/settings.json" ]; then
-    if [ -f "$CLAUDE_CONFIG_DIR/settings.json" ]; then
-        echo ""
-        echo "⚠️  Existing settings.json found at: $CLAUDE_CONFIG_DIR/settings.json"
-        read -p "   Overwrite with Rhinolabs settings? (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            cp "$PLUGIN_SOURCE/settings.json" "$CLAUDE_CONFIG_DIR/"
-            echo "   ✓ Settings installed"
+# Function to get display name for target
+get_display_name() {
+    local target=$1
+    case $target in
+        claude-code)
+            echo "Claude Code"
+            ;;
+        amp)
+            echo "Amp"
+            ;;
+        antigravity)
+            echo "Antigravity (Gemini)"
+            ;;
+        opencode)
+            echo "OpenCode"
+            ;;
+    esac
+}
+
+# Function to check if target is installed
+is_target_installed() {
+    local target=$1
+    local config_dir=$(get_config_dir "$target")
+    [ -d "$config_dir" ]
+}
+
+# Interactive target selection if none specified
+if [ ${#SELECTED_TARGETS[@]} -eq 0 ]; then
+    echo "Select targets to install:"
+    echo ""
+
+    for i in "${!AVAILABLE_TARGETS[@]}"; do
+        target="${AVAILABLE_TARGETS[$i]}"
+        display_name=$(get_display_name "$target")
+        config_dir=$(get_config_dir "$target")
+
+        if is_target_installed "$target"; then
+            status="${GREEN}[installed]${NC}"
         else
-            echo "   ⏭️  Skipped settings.json (keeping existing)"
+            status="${YELLOW}[not found]${NC}"
         fi
+
+        echo -e "  $((i+1)). $display_name $status"
+        echo -e "      Config: $config_dir"
+    done
+
+    echo "  5. All targets"
+    echo ""
+
+    read -p "Enter numbers separated by space (e.g., '1 2' or '5' for all): " -r
+    echo ""
+
+    if [[ "$REPLY" == *"5"* ]]; then
+        SELECTED_TARGETS=("${AVAILABLE_TARGETS[@]}")
     else
-        cp "$PLUGIN_SOURCE/settings.json" "$CLAUDE_CONFIG_DIR/"
-        echo "   ✓ Settings installed"
+        for num in $REPLY; do
+            if [[ $num -ge 1 && $num -le 4 ]]; then
+                SELECTED_TARGETS+=("${AVAILABLE_TARGETS[$((num-1))]}")
+            fi
+        done
     fi
 fi
 
-# Verify installation
-if [ -f "$PLUGIN_DIR/rhinolabs-claude/.claude-plugin/plugin.json" ]; then
-    echo ""
-    echo "✅ Installation successful!"
-    echo ""
-    echo "Installed components:"
-    echo "  • Plugin: $PLUGIN_DIR/rhinolabs-claude"
-    echo "  • Output style: $CLAUDE_CONFIG_DIR/output-styles/rhinolabs.md"
-    echo "  • Status line: $CLAUDE_CONFIG_DIR/statusline.sh"
-    echo "  • Settings: $CLAUDE_CONFIG_DIR/settings.json"
-    echo ""
-    echo "Next steps:"
-    echo "1. Restart Claude Code"
-    echo "2. The plugin will be automatically loaded"
-    echo "3. Check Claude Code settings to verify plugin is active"
-    echo ""
-else
-    echo ""
-    echo "❌ Installation failed!"
-    echo "   .claude-plugin/plugin.json not found in target directory"
+if [ ${#SELECTED_TARGETS[@]} -eq 0 ]; then
+    echo -e "${RED}❌ No targets selected${NC}"
     exit 1
 fi
+
+echo "Selected targets:"
+for target in "${SELECTED_TARGETS[@]}"; do
+    echo -e "  ${CYAN}•${NC} $(get_display_name "$target")"
+done
+echo ""
+
+# Confirm installation
+read -p "Continue with installation? (Y/n): " -n 1 -r
+echo ""
+if [[ $REPLY =~ ^[Nn]$ ]]; then
+    echo -e "${YELLOW}❌ Installation cancelled${NC}"
+    exit 1
+fi
+echo ""
+
+# Install for each target
+for target in "${SELECTED_TARGETS[@]}"; do
+    display_name=$(get_display_name "$target")
+    config_dir=$(get_config_dir "$target")
+    skills_dir=$(get_skills_dir "$target")
+
+    echo -e "${CYAN}📦 Installing for $display_name...${NC}"
+
+    # Create directories
+    mkdir -p "$config_dir"
+    mkdir -p "$skills_dir"
+    mkdir -p "$config_dir/output-styles"
+
+    # Copy skills
+    if [ -d "$PLUGIN_SOURCE/skills" ]; then
+        cp -r "$PLUGIN_SOURCE/skills/"* "$skills_dir/" 2>/dev/null || true
+        echo -e "   ${GREEN}✓${NC} Skills installed to $skills_dir"
+    fi
+
+    # Copy output style
+    if [ -f "$PLUGIN_SOURCE/output-styles/rhinolabs.md" ]; then
+        cp "$PLUGIN_SOURCE/output-styles/rhinolabs.md" "$config_dir/output-styles/"
+        echo -e "   ${GREEN}✓${NC} Output style installed"
+    fi
+
+    # Copy MCP config (only if it doesn't exist)
+    mcp_filename=$(get_mcp_filename "$target")
+    if [ -f "$PLUGIN_SOURCE/.mcp.json" ] && [ ! -f "$config_dir/$mcp_filename" ]; then
+        cp "$PLUGIN_SOURCE/.mcp.json" "$config_dir/$mcp_filename"
+        echo -e "   ${GREEN}✓${NC} MCP config installed"
+    elif [ -f "$config_dir/$mcp_filename" ]; then
+        echo -e "   ${YELLOW}⏭️${NC}  MCP config exists, skipped"
+    fi
+
+    # Target-specific installations
+    case $target in
+        claude-code)
+            # Copy Claude Code plugin
+            PLUGIN_DIR="$HOME/.config/claude-code/plugins"
+            if [ "$OS" == "macos" ]; then
+                PLUGIN_DIR="$HOME/Library/Application Support/Claude Code/plugins"
+            fi
+
+            if [ -d "$PLUGIN_DIR/rhinolabs-claude" ]; then
+                echo -e "   ${YELLOW}⚠️${NC}  Existing plugin found, overwriting..."
+                rm -rf "$PLUGIN_DIR/rhinolabs-claude"
+            fi
+
+            mkdir -p "$PLUGIN_DIR"
+            cp -r "$PLUGIN_SOURCE" "$PLUGIN_DIR/rhinolabs-claude"
+            echo -e "   ${GREEN}✓${NC} Plugin installed to $PLUGIN_DIR/rhinolabs-claude"
+
+            # Copy statusline script
+            if [ -f "$PLUGIN_SOURCE/statusline.sh" ]; then
+                cp "$PLUGIN_SOURCE/statusline.sh" "$config_dir/"
+                chmod +x "$config_dir/statusline.sh"
+                echo -e "   ${GREEN}✓${NC} Status line script installed"
+            fi
+
+            # Handle settings.json
+            if [ -f "$PLUGIN_SOURCE/settings.json" ]; then
+                if [ -f "$config_dir/settings.json" ]; then
+                    echo -e "   ${YELLOW}⚠️${NC}  Existing settings.json found"
+                    read -p "      Overwrite? (y/N): " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        cp "$PLUGIN_SOURCE/settings.json" "$config_dir/"
+                        echo -e "   ${GREEN}✓${NC} Settings installed"
+                    else
+                        echo -e "   ${YELLOW}⏭️${NC}  Settings skipped"
+                    fi
+                else
+                    cp "$PLUGIN_SOURCE/settings.json" "$config_dir/"
+                    echo -e "   ${GREEN}✓${NC} Settings installed"
+                fi
+            fi
+            ;;
+    esac
+
+    echo ""
+done
+
+# Summary
+echo -e "${GREEN}✅ Installation complete!${NC}"
+echo ""
+echo "Installed for:"
+for target in "${SELECTED_TARGETS[@]}"; do
+    display_name=$(get_display_name "$target")
+    config_dir=$(get_config_dir "$target")
+    echo -e "  ${GREEN}•${NC} $display_name → $config_dir"
+done
+echo ""
+echo "Next steps:"
+echo "  1. Restart your AI coding assistant(s)"
+echo "  2. The plugin/skills will be automatically loaded"
+echo ""
