@@ -185,44 +185,23 @@ impl Profiles {
         project_path.join(".claude")
     }
 
-    /// Scan the plugin's skills directory for installed skills.
-    /// Returns a sorted list of skill IDs (directory names that contain SKILL.md).
-    fn scan_plugin_skills() -> Vec<String> {
-        let plugin_skills_dir = match Paths::plugin_dir() {
-            Ok(dir) => dir.join("skills"),
-            Err(_) => return Vec::new(),
-        };
+    /// Load profiles.json from the plugin package (source of truth for skill assignments)
+    fn load_plugin_profiles() -> Option<ProfilesConfig> {
+        let plugin_dir = Paths::plugin_dir().ok()?;
+        let plugin_profiles = plugin_dir.join("profiles.json");
 
-        if !plugin_skills_dir.is_dir() {
-            return Vec::new();
+        if !plugin_profiles.exists() {
+            return None;
         }
 
-        let mut skill_ids: Vec<String> = fs::read_dir(&plugin_skills_dir)
-            .ok()
-            .into_iter()
-            .flatten()
-            .filter_map(|entry| {
-                let entry = entry.ok()?;
-                if !entry.file_type().ok()?.is_dir() {
-                    return None;
-                }
-                let skill_md = entry.path().join("SKILL.md");
-                if skill_md.exists() {
-                    entry.file_name().to_str().map(|s| s.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        skill_ids.sort();
-        skill_ids
+        let content = fs::read_to_string(&plugin_profiles).ok()?;
+        serde_json::from_str(&content).ok()
     }
 
-    /// Create the default Main-Profile
+    /// Create a fallback Main-Profile with no skills.
+    /// This is only used when the plugin doesn't include a profiles.json.
     fn create_main_profile() -> Profile {
         let now = chrono::Utc::now().to_rfc3339();
-        let skills = Self::scan_plugin_skills();
 
         Profile {
             id: "main".to_string(),
@@ -231,10 +210,10 @@ impl Profiles {
                 "User-level skills that apply to all projects. Install with: rhinolabs install"
                     .to_string(),
             profile_type: ProfileType::User,
-            skills,
+            skills: Vec::new(),
             auto_invoke_rules: Vec::new(),
             instructions: None,
-            generate_copilot: false, // Main-Profile doesn't generate copilot (user-level)
+            generate_copilot: false,
             generate_agents: false,
             created_at: now.clone(),
             updated_at: now,
@@ -352,12 +331,15 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
         let path = Self::config_path()?;
 
         if !path.exists() {
-            // First time: create config with Main-Profile
-            let main_profile = Self::create_main_profile();
-            let config = ProfilesConfig {
-                profiles: vec![main_profile],
-                default_user_profile: Some("main".to_string()),
-            };
+            // First time: seed from plugin's profiles.json if available,
+            // otherwise create a default Main-Profile with no skills.
+            let config = Self::load_plugin_profiles().unwrap_or_else(|| {
+                let main_profile = Self::create_main_profile();
+                ProfilesConfig {
+                    profiles: vec![main_profile],
+                    default_user_profile: Some("main".to_string()),
+                }
+            });
             Self::save_config(&config)?;
             return Ok(config);
         }
@@ -373,18 +355,6 @@ IMPORTANT: When you detect any of these contexts, IMMEDIATELY read the correspon
                 config.default_user_profile = Some("main".to_string());
             }
             needs_save = true;
-        }
-
-        // Migrate: if Main-Profile has empty skills, populate from plugin
-        if let Some(main) = config.profiles.iter_mut().find(|p| p.id == "main") {
-            if main.skills.is_empty() {
-                let plugin_skills = Self::scan_plugin_skills();
-                if !plugin_skills.is_empty() {
-                    main.skills = plugin_skills;
-                    main.updated_at = chrono::Utc::now().to_rfc3339();
-                    needs_save = true;
-                }
-            }
         }
 
         if needs_save {
@@ -2483,39 +2453,58 @@ mod tests {
     // ============================================
 
     #[test]
-    fn test_create_main_profile_with_plugin_skills() {
+    fn test_create_main_profile_fallback_has_no_skills() {
         let _lock = ENV_MUTEX.lock().unwrap();
-        let env = TestEnv::new();
+        let _env = TestEnv::new();
 
-        // Create skills in the plugin directory
-        env.create_skill(
-            "react-patterns",
-            "React Patterns",
-            "React best practices",
-            "# React",
-        );
-        env.create_skill(
-            "typescript-best-practices",
-            "TypeScript",
-            "TS patterns",
-            "# TS",
-        );
-        env.create_skill("tailwind-4", "Tailwind 4", "Tailwind CSS", "# Tailwind");
-
+        // create_main_profile is a fallback when no plugin profiles.json exists.
+        // It should NOT scan the filesystem — it creates an empty profile.
         let profile = Profiles::create_main_profile();
 
         assert_eq!(profile.id, "main");
         assert_eq!(profile.profile_type, ProfileType::User);
-        assert_eq!(profile.skills.len(), 3);
-        assert!(profile.skills.contains(&"react-patterns".to_string()));
-        assert!(profile.skills.contains(&"tailwind-4".to_string()));
-        assert!(profile
+        assert!(profile.skills.is_empty());
+    }
+
+    #[test]
+    fn test_load_config_seeds_from_plugin_profiles_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+
+        // Create a profiles.json in the plugin directory (source of truth)
+        let plugin_config = ProfilesConfig {
+            profiles: vec![Profile {
+                id: "main".to_string(),
+                name: "Main Profile".to_string(),
+                description: "User-level skills".to_string(),
+                profile_type: ProfileType::User,
+                skills: vec![
+                    "rhinolabs-security".to_string(),
+                    "rhinolabs-architecture".to_string(),
+                ],
+                auto_invoke_rules: Vec::new(),
+                instructions: None,
+                generate_copilot: false,
+                generate_agents: false,
+                created_at: "2026-01-01T00:00:00Z".to_string(),
+                updated_at: "2026-01-01T00:00:00Z".to_string(),
+            }],
+            default_user_profile: Some("main".to_string()),
+        };
+        let plugin_dir = Paths::plugin_dir().unwrap();
+        let plugin_profiles_path = plugin_dir.join("profiles.json");
+        let content = serde_json::to_string_pretty(&plugin_config).unwrap();
+        fs::write(&plugin_profiles_path, content).unwrap();
+
+        // load_config should seed from plugin profiles.json
+        let config = Profiles::load_config().unwrap();
+
+        let main = config.profiles.iter().find(|p| p.id == "main").unwrap();
+        assert_eq!(main.skills.len(), 2);
+        assert!(main.skills.contains(&"rhinolabs-security".to_string()));
+        assert!(main
             .skills
-            .contains(&"typescript-best-practices".to_string()));
-        // Skills should be sorted
-        assert_eq!(profile.skills[0], "react-patterns");
-        assert_eq!(profile.skills[1], "tailwind-4");
-        assert_eq!(profile.skills[2], "typescript-best-practices");
+            .contains(&"rhinolabs-architecture".to_string()));
     }
 
     #[test]
@@ -2533,41 +2522,18 @@ mod tests {
     }
 
     #[test]
-    fn test_scan_plugin_skills_ignores_dirs_without_skill_md() {
+    fn test_load_config_preserves_empty_main_profile_skills() {
         let _lock = ENV_MUTEX.lock().unwrap();
         let env = TestEnv::new();
 
-        // Create a valid skill
-        env.create_skill("valid-skill", "Valid", "A valid skill", "# Valid");
-
-        // Create a directory without SKILL.md (should be ignored)
-        let invalid_dir = env.skills_dir().join("not-a-skill");
-        fs::create_dir_all(&invalid_dir).unwrap();
-        fs::write(invalid_dir.join("README.md"), "# Not a skill").unwrap();
-
-        let skills = Profiles::scan_plugin_skills();
-
-        assert_eq!(skills.len(), 1);
-        assert_eq!(skills[0], "valid-skill");
-    }
-
-    #[test]
-    fn test_load_config_migrates_empty_main_profile() {
-        let _lock = ENV_MUTEX.lock().unwrap();
-        let env = TestEnv::new();
-
-        // Create skills in the plugin directory
-        env.create_skill("react-patterns", "React", "React patterns", "# React");
-        env.create_skill("typescript-best-practices", "TS", "TS patterns", "# TS");
-
-        // Create a profiles.json with an empty main profile (simulates the bug)
+        // Create a profiles.json with an empty main profile
         let empty_main = ProfilesConfig {
             profiles: vec![Profile {
                 id: "main".to_string(),
                 name: "Main Profile".to_string(),
                 description: "User-level skills".to_string(),
                 profile_type: ProfileType::User,
-                skills: Vec::new(), // Empty! This is the bug.
+                skills: Vec::new(),
                 auto_invoke_rules: Vec::new(),
                 instructions: None,
                 generate_copilot: false,
@@ -2579,20 +2545,11 @@ mod tests {
         };
         env.create_profiles_config(&empty_main);
 
-        // load_config should migrate the empty skills
+        // load_config should NOT auto-populate skills from filesystem
         let config = Profiles::load_config().unwrap();
 
         let main = config.profiles.iter().find(|p| p.id == "main").unwrap();
-        assert_eq!(main.skills.len(), 2);
-        assert!(main.skills.contains(&"react-patterns".to_string()));
-        assert!(main
-            .skills
-            .contains(&"typescript-best-practices".to_string()));
-
-        // Verify it was persisted to disk
-        let content = fs::read_to_string(env.config_path()).unwrap();
-        assert!(content.contains("react-patterns"));
-        assert!(content.contains("typescript-best-practices"));
+        assert!(main.skills.is_empty());
     }
 
     #[test]

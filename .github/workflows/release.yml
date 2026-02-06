@@ -230,6 +230,7 @@ jobs:
             .mcp.json \
             CLAUDE.md \
             settings.json \
+            profiles.json \
             skills \
             scripts \
             output-styles \
