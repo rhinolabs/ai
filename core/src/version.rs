@@ -281,11 +281,13 @@ mod tests {
     }
 
     #[test]
-    fn test_releases_api_url_fails_without_config() {
-        // Without project config, releases_api_url should return an error
-        // because owner/repo are empty by default
+    fn test_releases_api_url_uses_defaults() {
+        // Default config has owner/repo set, so URL should build successfully
         let result = Version::releases_api_url();
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        let url = result.unwrap();
+        assert!(url.contains("javiermontescarrera"));
+        assert!(url.contains("rhinolabs-ai"));
     }
 
     #[test]

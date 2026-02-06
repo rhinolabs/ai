@@ -35,7 +35,10 @@ pub use profiles::{
     AutoInvokeRule, CreateProfileInput, Profile, ProfileInstallResult, ProfileType, Profiles,
     SkillInstallError, UpdateAutoInvokeInput, UpdateProfileInput,
 };
-pub use project::{GitHubConfig, Project, ProjectConfig, ProjectStatus, ReleaseAsset};
+pub use project::{
+    GitHubConfig, Project, ProjectConfig, ProjectStatus, ReleaseAsset, DEFAULT_GITHUB_OWNER,
+    DEFAULT_GITHUB_REPO,
+};
 pub use rag::{Rag, RagConfig, RagSettings};
 pub use settings::{
     AttributionConfig, PermissionConfig, PluginSettings, Settings, StatusLineConfig,

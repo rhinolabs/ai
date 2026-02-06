@@ -4,6 +4,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// Default GitHub owner for plugin releases.
+/// Change this when migrating to an organization account.
+pub const DEFAULT_GITHUB_OWNER: &str = "javiermontescarrera";
+
+/// Default GitHub repository for plugin releases.
+pub const DEFAULT_GITHUB_REPO: &str = "rhinolabs-ai";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitHubConfig {
@@ -15,8 +22,8 @@ pub struct GitHubConfig {
 impl Default for GitHubConfig {
     fn default() -> Self {
         Self {
-            owner: String::new(),
-            repo: String::new(),
+            owner: DEFAULT_GITHUB_OWNER.into(),
+            repo: DEFAULT_GITHUB_REPO.into(),
             branch: "main".into(),
         }
     }
@@ -362,8 +369,8 @@ mod tests {
     fn test_project_config_default() {
         let config = ProjectConfig::default();
 
-        assert!(config.github.owner.is_empty());
-        assert!(config.github.repo.is_empty());
+        assert_eq!(config.github.owner, DEFAULT_GITHUB_OWNER);
+        assert_eq!(config.github.repo, DEFAULT_GITHUB_REPO);
         assert_eq!(config.github.branch, "main");
         assert!(!config.assets.is_empty());
         assert!(config.auto_changelog);
