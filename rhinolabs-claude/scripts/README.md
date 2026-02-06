@@ -9,6 +9,28 @@ This directory contains utility scripts for managing the Rhinolabs Claude plugin
 
 ## Available Scripts
 
+### `clean-install.sh`
+
+Full clean + reinstall for **Linux** and **macOS**. Removes all artifacts (CLI, plugin, config, skills) and downloads the latest release.
+
+**Usage:**
+```bash
+./clean-install.sh              # Full clean + reinstall
+./clean-install.sh --clean-only # Only remove, don't reinstall
+```
+
+### `clean-install.ps1`
+
+Full clean + reinstall for **Windows**. Same as above but for PowerShell.
+
+**Usage:**
+```powershell
+.\clean-install.ps1              # Full clean + reinstall
+.\clean-install.ps1 -CleanOnly   # Only remove, don't reinstall
+```
+
+---
+
 ### `install.ps1`
 
 Windows PowerShell installer for the rhinolabs-claude plugin.
