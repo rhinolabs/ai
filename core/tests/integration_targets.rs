@@ -75,12 +75,21 @@ fn test_integration_skill_deploy_check_remove_project() {
     // 3. Verify deployed
     assert!(deployer.is_skill_deployed_project(skill_id, &project));
 
-    // 4. Verify content
+    // 4. Verify content is accessible through symlink
     let deployed_dir = project.join(".claude").join("skills").join(skill_id);
     assert!(deployed_dir.join("SKILL.md").exists());
     assert!(deployed_dir.join("examples").join("usage.ts").exists());
-    // .git should NOT be copied
-    assert!(!deployed_dir.join(".git").exists());
+
+    // With symlinks, the deployed dir IS a link to the source.
+    // Verify it's a symlink (not a copy).
+    #[cfg(unix)]
+    {
+        let meta = fs::symlink_metadata(&deployed_dir).unwrap();
+        assert!(
+            meta.file_type().is_symlink(),
+            "deployed skill should be a symlink"
+        );
+    }
 
     // 5. Remove
     deployer.remove_skill_project(skill_id, &project).unwrap();

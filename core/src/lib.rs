@@ -1,6 +1,7 @@
 pub mod deploy;
 pub mod diagnostics;
 pub mod error;
+pub mod fs_utils;
 pub mod git;
 pub mod installer;
 pub mod instructions;

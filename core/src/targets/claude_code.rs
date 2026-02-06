@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::{McpConfig, McpConfigManager, Paths, Result};
+use crate::{fs_utils, McpConfig, McpConfigManager, Paths, Result};
 
 use super::{
     DeployTarget, InstructionsDeployer, McpDeployer, SkillDeployer, TargetDetector, TargetPaths,
@@ -13,31 +13,6 @@ use super::{
 /// can be accessed through the unified deployer traits.
 pub struct ClaudeCodeDeployer;
 
-impl ClaudeCodeDeployer {
-    /// Copy a directory recursively, skipping `.git/` directories.
-    fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-        fs::create_dir_all(dst)?;
-
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            let file_type = entry.file_type()?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if file_type.is_dir() {
-                if entry.file_name() == ".git" {
-                    continue;
-                }
-                Self::copy_dir_recursive(&src_path, &dst_path)?;
-            } else {
-                fs::copy(&src_path, &dst_path)?;
-            }
-        }
-
-        Ok(())
-    }
-}
-
 impl SkillDeployer for ClaudeCodeDeployer {
     fn target(&self) -> DeployTarget {
         DeployTarget::ClaudeCode
@@ -46,13 +21,7 @@ impl SkillDeployer for ClaudeCodeDeployer {
     fn deploy_skill_user(&self, skill_id: &str, source_path: &Path) -> Result<()> {
         let skills_dir = TargetPaths::user_skills_dir(DeployTarget::ClaudeCode)?;
         let dest = skills_dir.join(skill_id);
-
-        // Remove existing if present
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        Self::copy_dir_recursive(source_path, &dest)
+        fs_utils::deploy_skill_link(source_path, &dest)
     }
 
     fn deploy_skill_project(
@@ -63,34 +32,19 @@ impl SkillDeployer for ClaudeCodeDeployer {
     ) -> Result<()> {
         let skills_dir = TargetPaths::project_skills_dir(DeployTarget::ClaudeCode, project_path);
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        Self::copy_dir_recursive(source_path, &dest)
+        fs_utils::deploy_skill_link(source_path, &dest)
     }
 
     fn remove_skill_user(&self, skill_id: &str) -> Result<()> {
         let skills_dir = TargetPaths::user_skills_dir(DeployTarget::ClaudeCode)?;
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        Ok(())
+        fs_utils::remove_skill_dir(&dest)
     }
 
     fn remove_skill_project(&self, skill_id: &str, project_path: &Path) -> Result<()> {
         let skills_dir = TargetPaths::project_skills_dir(DeployTarget::ClaudeCode, project_path);
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        Ok(())
+        fs_utils::remove_skill_dir(&dest)
     }
 
     fn is_skill_deployed_user(&self, skill_id: &str) -> Result<bool> {
@@ -243,15 +197,14 @@ mod tests {
         fs::write(source.join("SKILL.md"), "# Test Skill").unwrap();
 
         let skills_dir = temp.path().join("skills");
-        fs::create_dir_all(&skills_dir).unwrap();
         let dest = skills_dir.join("test-skill");
 
-        // Deploy
-        ClaudeCodeDeployer::copy_dir_recursive(&source, &dest).unwrap();
+        // Deploy via symlink
+        fs_utils::deploy_skill_link(&source, &dest).unwrap();
         assert!(dest.join("SKILL.md").exists());
 
         // Remove
-        fs::remove_dir_all(&dest).unwrap();
+        fs_utils::remove_skill_dir(&dest).unwrap();
         assert!(!dest.exists());
     }
 
@@ -266,7 +219,7 @@ mod tests {
         fs::write(source.join("sub").join("file.txt"), "content").unwrap();
 
         let dest = temp.path().join("dest");
-        ClaudeCodeDeployer::copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         assert!(dest.join("SKILL.md").exists());
         assert!(dest.join("sub").join("file.txt").exists());
@@ -468,7 +421,7 @@ mod tests {
     }
 
     // ====================================================
-    // copy_dir_recursive: edge cases
+    // copy_dir_recursive: edge cases (via fs_utils)
     // ====================================================
 
     #[test]
@@ -480,7 +433,7 @@ mod tests {
         fs::write(deep.join("deep.txt"), "deep content").unwrap();
 
         let dest = temp.path().join("dest");
-        ClaudeCodeDeployer::copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         assert!(dest
             .join("a")
@@ -507,7 +460,7 @@ mod tests {
         fs::create_dir_all(&source).unwrap();
 
         let dest = temp.path().join("dest");
-        ClaudeCodeDeployer::copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         assert!(dest.exists());
         assert!(dest.is_dir());
@@ -526,7 +479,7 @@ mod tests {
         fs::write(source.join("c.md"), "c").unwrap();
 
         let dest = temp.path().join("dest");
-        ClaudeCodeDeployer::copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         assert_eq!(fs::read_to_string(dest.join("a.md")).unwrap(), "a");
         assert_eq!(fs::read_to_string(dest.join("b.md")).unwrap(), "b");
@@ -542,7 +495,7 @@ mod tests {
         fs::write(source.join("binary.bin"), &binary_content).unwrap();
 
         let dest = temp.path().join("dst");
-        ClaudeCodeDeployer::copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         let read = fs::read(dest.join("binary.bin")).unwrap();
         assert_eq!(read, binary_content);
@@ -554,7 +507,7 @@ mod tests {
         let source = temp.path().join("does-not-exist");
         let dest = temp.path().join("dest");
 
-        let result = ClaudeCodeDeployer::copy_dir_recursive(&source, &dest);
+        let result = fs_utils::copy_dir_recursive(&source, &dest);
         assert!(result.is_err());
     }
 

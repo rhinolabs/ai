@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::Result;
+use crate::{fs_utils, Result};
 
 use super::{DeployTarget, InstructionsDeployer, SkillDeployer, TargetPaths};
 
@@ -23,31 +23,6 @@ impl GenericDeployer {
     }
 }
 
-/// Copy a directory recursively, skipping `.git/` directories.
-///
-/// Shared utility used by both `GenericDeployer` and `ClaudeCodeDeployer`.
-pub fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-    fs::create_dir_all(dst)?;
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-
-        if file_type.is_dir() {
-            if entry.file_name() == ".git" {
-                continue;
-            }
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
-
-    Ok(())
-}
-
 impl SkillDeployer for GenericDeployer {
     fn target(&self) -> DeployTarget {
         self.target
@@ -56,12 +31,7 @@ impl SkillDeployer for GenericDeployer {
     fn deploy_skill_user(&self, skill_id: &str, source_path: &Path) -> Result<()> {
         let skills_dir = TargetPaths::user_skills_dir(self.target)?;
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        copy_dir_recursive(source_path, &dest)
+        fs_utils::deploy_skill_link(source_path, &dest)
     }
 
     fn deploy_skill_project(
@@ -72,34 +42,19 @@ impl SkillDeployer for GenericDeployer {
     ) -> Result<()> {
         let skills_dir = TargetPaths::project_skills_dir(self.target, project_path);
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        copy_dir_recursive(source_path, &dest)
+        fs_utils::deploy_skill_link(source_path, &dest)
     }
 
     fn remove_skill_user(&self, skill_id: &str) -> Result<()> {
         let skills_dir = TargetPaths::user_skills_dir(self.target)?;
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        Ok(())
+        fs_utils::remove_skill_dir(&dest)
     }
 
     fn remove_skill_project(&self, skill_id: &str, project_path: &Path) -> Result<()> {
         let skills_dir = TargetPaths::project_skills_dir(self.target, project_path);
         let dest = skills_dir.join(skill_id);
-
-        if dest.exists() {
-            fs::remove_dir_all(&dest)?;
-        }
-
-        Ok(())
+        fs_utils::remove_skill_dir(&dest)
     }
 
     fn is_skill_deployed_user(&self, skill_id: &str) -> Result<bool> {
@@ -222,7 +177,7 @@ mod tests {
         fs::write(source.join("sub").join("file.txt"), "content").unwrap();
 
         let dest = temp.path().join("dest");
-        copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         assert!(dest.join("SKILL.md").exists());
         assert!(dest.join("sub").join("file.txt").exists());
@@ -237,7 +192,7 @@ mod tests {
         fs::write(source.join("SKILL.md"), "# Skill").unwrap();
 
         let dest = temp.path().join("dest");
-        copy_dir_recursive(&source, &dest).unwrap();
+        fs_utils::copy_dir_recursive(&source, &dest).unwrap();
 
         assert!(dest.join("SKILL.md").exists());
         assert!(!dest.join(".git").exists());

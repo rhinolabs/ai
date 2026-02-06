@@ -36,5 +36,8 @@ hmac = "0.12"
 walkdir = "2"
 quick-xml = { version = "0.31", features = ["serialize"] }
 
+[target.'cfg(windows)'.dependencies]
+junction = "1"
+
 [dev-dependencies]
 wiremock = "0.6"

@@ -1,6 +1,6 @@
 use crate::{
-    targets::TargetPaths, DeployTarget, InstructionsManager, OutputStyle, OutputStyles, Paths,
-    Result, RhinolabsError, Settings, Skill, Skills,
+    fs_utils, targets::TargetPaths, DeployTarget, InstructionsManager, OutputStyle, OutputStyles,
+    Paths, Result, RhinolabsError, Settings, Skill, Skills,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -1227,16 +1227,7 @@ Skills in `{}/`:
     fn install_skill(skill_id: &str, skills_target: &Path) -> Result<()> {
         let skill_source = Skills::get_skill_path(skill_id)?;
         let skill_target = skills_target.join(skill_id);
-
-        // Remove existing if present
-        if skill_target.exists() {
-            fs::remove_dir_all(&skill_target)?;
-        }
-
-        // Copy skill directory
-        Self::copy_dir_recursive(&skill_source, &skill_target)?;
-
-        Ok(())
+        fs_utils::deploy_skill_link(&skill_source, &skill_target)
     }
 
     /// Uninstall a profile from a target path.
@@ -1317,30 +1308,6 @@ Skills in `{}/`:
     ) -> Result<ProfileInstallResult> {
         // Simply re-install - install_skill already handles removing existing
         Self::install(profile_id, target_path, targets)
-    }
-
-    /// Copy directory recursively
-    fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-        fs::create_dir_all(dst)?;
-
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            let file_type = entry.file_type()?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if file_type.is_dir() {
-                // Skip .git directory
-                if entry.file_name() == ".git" {
-                    continue;
-                }
-                Self::copy_dir_recursive(&src_path, &dst_path)?;
-            } else {
-                fs::copy(&src_path, &dst_path)?;
-            }
-        }
-
-        Ok(())
     }
 
     // ============================================
@@ -1689,7 +1656,7 @@ mod tests {
         fs::create_dir(source_dir.path().join(".git")).unwrap();
         fs::write(source_dir.path().join(".git").join("config"), "git config").unwrap();
 
-        let result = Profiles::copy_dir_recursive(source_dir.path(), target_dir.path());
+        let result = fs_utils::copy_dir_recursive(source_dir.path(), target_dir.path());
         assert!(result.is_ok());
 
         assert!(target_dir.path().join("file1.txt").exists());

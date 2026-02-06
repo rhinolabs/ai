@@ -1,4 +1,4 @@
-use crate::{Paths, Result, RhinolabsError, Version};
+use crate::{fs_utils, Paths, Result, RhinolabsError, Version};
 use std::fs;
 use std::path::Path;
 
@@ -80,7 +80,7 @@ impl Installer {
         }
 
         // Copy directory recursively
-        Self::copy_dir_recursive(source_dir, &plugin_dir)?;
+        fs_utils::copy_dir_recursive(source_dir, &plugin_dir)?;
 
         // Save version info
         let version_info = Version {
@@ -148,30 +148,6 @@ impl Installer {
 
         Ok(())
     }
-
-    /// Copy directory recursively
-    fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
-        fs::create_dir_all(dst)?;
-
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            let file_type = entry.file_type()?;
-            let src_path = entry.path();
-            let dst_path = dst.join(entry.file_name());
-
-            if file_type.is_dir() {
-                // Skip .git directory
-                if entry.file_name() == ".git" {
-                    continue;
-                }
-                Self::copy_dir_recursive(&src_path, &dst_path)?;
-            } else {
-                fs::copy(&src_path, &dst_path)?;
-            }
-        }
-
-        Ok(())
-    }
 }
 
 impl Default for Installer {
@@ -223,8 +199,7 @@ mod tests {
         fs::create_dir(source_dir.path().join(".git")).unwrap();
         fs::write(source_dir.path().join(".git").join("config"), "git config").unwrap();
 
-        let _installer = Installer::new();
-        let result = Installer::copy_dir_recursive(source_dir.path(), target_dir.path());
+        let result = fs_utils::copy_dir_recursive(source_dir.path(), target_dir.path());
 
         assert!(result.is_ok());
         assert!(target_dir.path().join("file1.txt").exists());
