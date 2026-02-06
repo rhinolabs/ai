@@ -198,6 +198,44 @@ impl Profiles {
         serde_json::from_str(&content).ok()
     }
 
+    /// Sync user profiles from the plugin's profiles.json.
+    /// Updates skill assignments for existing profiles while preserving
+    /// user customizations (instructions, auto_invoke_rules, etc.).
+    /// Returns the list of profile IDs that were updated.
+    pub fn sync_from_plugin() -> Result<Vec<String>> {
+        let plugin_config = match Self::load_plugin_profiles() {
+            Some(config) => config,
+            None => return Ok(Vec::new()),
+        };
+
+        let mut user_config = Self::load_config()?;
+        let mut synced = Vec::new();
+
+        for plugin_profile in &plugin_config.profiles {
+            if let Some(user_profile) = user_config
+                .profiles
+                .iter_mut()
+                .find(|p| p.id == plugin_profile.id)
+            {
+                if user_profile.skills != plugin_profile.skills {
+                    user_profile.skills = plugin_profile.skills.clone();
+                    user_profile.updated_at = chrono::Utc::now().to_rfc3339();
+                    synced.push(plugin_profile.id.clone());
+                }
+            } else {
+                // Profile exists in plugin but not in user config — add it
+                user_config.profiles.push(plugin_profile.clone());
+                synced.push(plugin_profile.id.clone());
+            }
+        }
+
+        if !synced.is_empty() {
+            Self::save_config(&user_config)?;
+        }
+
+        Ok(synced)
+    }
+
     /// Create a fallback Main-Profile with no skills.
     /// This is only used when the plugin doesn't include a profiles.json.
     fn create_main_profile() -> Profile {
@@ -2469,7 +2507,7 @@ mod tests {
     #[test]
     fn test_load_config_seeds_from_plugin_profiles_json() {
         let _lock = ENV_MUTEX.lock().unwrap();
-        let env = TestEnv::new();
+        let _env = TestEnv::new();
 
         // Create a profiles.json in the plugin directory (source of truth)
         let plugin_config = ProfilesConfig {
@@ -2502,9 +2540,7 @@ mod tests {
         let main = config.profiles.iter().find(|p| p.id == "main").unwrap();
         assert_eq!(main.skills.len(), 2);
         assert!(main.skills.contains(&"rhinolabs-security".to_string()));
-        assert!(main
-            .skills
-            .contains(&"rhinolabs-architecture".to_string()));
+        assert!(main.skills.contains(&"rhinolabs-architecture".to_string()));
     }
 
     #[test]

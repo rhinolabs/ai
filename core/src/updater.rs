@@ -1,4 +1,4 @@
-use crate::{Installer, Paths, Result, RhinolabsError, Version};
+use crate::{Installer, Paths, Profiles, Result, RhinolabsError, Version};
 
 pub struct Updater {
     dry_run: bool,
@@ -45,8 +45,17 @@ impl Updater {
         let installer = Installer::new();
         installer.uninstall()?;
 
-        // Install latest version
+        // Install latest version (downloads new plugin with updated profiles.json)
         installer.install().await?;
+
+        // Sync profile skill assignments from the updated plugin
+        let synced = Profiles::sync_from_plugin().unwrap_or_default();
+        if !synced.is_empty() {
+            // Re-deploy main profile skills if it was updated
+            if synced.iter().any(|id| id == "main") {
+                let _ = Profiles::install("main", None, None);
+            }
+        }
 
         Ok(())
     }
