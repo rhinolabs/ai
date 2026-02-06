@@ -138,7 +138,7 @@ The `rhinolabs-ai` CLI is required for skill management. If not installed, the i
 
 ### Option 1: Download from Releases (Recommended)
 
-1. Go to the [Releases page](../../releases/latest)
+1. Go to the [Releases page](../../../releases/latest)
 
 2. Download the binary for your platform:
 
