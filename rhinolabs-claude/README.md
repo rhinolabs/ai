@@ -39,21 +39,17 @@ This plugin provides:
 
 ## Installation
 
-### Via CLI (Recommended)
+### Via CLI
 
 ```bash
 rhinolabs-ai install
 ```
 
-### Via Scripts
+This downloads the plugin, installs it, and sets up all main profile skills in one step.
 
-```bash
-# macOS/Linux
-cd rhinolabs-claude/scripts
-chmod +x install.sh
-./install.sh
+### Windows (PowerShell)
 
-# Windows
+```powershell
 cd rhinolabs-claude\scripts
 .\install.ps1
 ```
@@ -96,7 +92,6 @@ graph TB
 
         subgraph "Installation"
             SCRIPTS[scripts/]
-            INSTALL_SH[install.sh]
             INSTALL_PS1[install.ps1]
         end
     end
@@ -133,7 +128,6 @@ rhinolabs-claude/
 ├── .mcp.json                 # MCP server config
 ├── .skills-config.json       # Skill states
 └── scripts/
-    ├── install.sh            # Unix installer
     ├── install.ps1           # Windows installer
     └── README.md             # Scripts documentation
 ```
@@ -482,15 +476,6 @@ EOF
 
 ```bash
 rhinolabs-ai update
-```
-
-### Via Scripts
-
-```bash
-cd rhinolabs-ai
-git pull
-cd rhinolabs-claude/scripts
-./install.sh
 ```
 
 ## Uninstalling

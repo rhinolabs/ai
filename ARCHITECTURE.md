@@ -581,11 +581,9 @@ Move category mapping to `.skills-config.json`:
 
 ### Initial Setup (New Team Developer)
 
-1. Clone the repo
-2. Run install script: `./rhinolabs-claude/scripts/install.sh`
-3. Run any command (auto-sync triggers): `rhinolabs-ai profile list`
-4. Accept Main-Profile installation when prompted
-5. Install project profiles as needed
+1. Install the CLI (download binary or `cargo install`)
+2. Run `rhinolabs-ai install` (downloads plugin + installs main profile skills)
+3. Install project profiles as needed
 
 Note: Team developers do NOT need GITHUB_TOKEN (only for read operations)
 

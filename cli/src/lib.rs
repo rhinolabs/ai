@@ -15,11 +15,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Install the Rhinolabs Claude plugin
+    /// Install the Rhinolabs Claude plugin (plugin + main profile skills)
     Install {
         /// Install from local directory (for development)
         #[arg(short, long)]
         local: Option<String>,
+
+        /// Deploy targets (claude-code, amp, antigravity, opencode, all)
+        #[arg(short, long)]
+        target: Vec<String>,
+
+        /// Skip main profile installation (plugin only, no skills)
+        #[arg(long)]
+        skip_profile: bool,
 
         /// Dry run - show what would be done without making changes
         #[arg(long)]
@@ -237,8 +245,13 @@ pub async fn run() -> anyhow::Result<()> {
     }
 
     match cli.command {
-        Some(Commands::Install { local, dry_run }) => {
-            install::run(local, dry_run).await?;
+        Some(Commands::Install {
+            local,
+            target,
+            skip_profile,
+            dry_run,
+        }) => {
+            install::run(local, target, skip_profile, dry_run).await?;
         }
         Some(Commands::Update { dry_run }) => {
             update::run(dry_run).await?;

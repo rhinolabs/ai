@@ -1,11 +1,27 @@
 use crate::ui::Ui;
 use anyhow::Result;
+use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use rhinolabs_core::{Installer, Paths};
+use rhinolabs_core::{DeployTarget, Installer, Paths, Profiles};
 use std::path::Path;
 
-pub async fn run(local_path: Option<String>, dry_run: bool) -> Result<()> {
-    Ui::header("🚀 Installing Rhinolabs Claude Plugin");
+/// Parse target strings into DeployTarget vec.
+fn parse_targets(strs: &[String]) -> Result<Vec<DeployTarget>> {
+    if strs.iter().any(|s| s == "all") {
+        return Ok(DeployTarget::all().to_vec());
+    }
+    strs.iter()
+        .map(|s| s.parse::<DeployTarget>().map_err(|e| anyhow::anyhow!(e)))
+        .collect()
+}
+
+pub async fn run(
+    local_path: Option<String>,
+    target_strs: Vec<String>,
+    skip_profile: bool,
+    dry_run: bool,
+) -> Result<()> {
+    Ui::header("Installing Rhinolabs AI");
 
     let installer = Installer::new().dry_run(dry_run);
 
@@ -26,9 +42,11 @@ pub async fn run(local_path: Option<String>, dry_run: bool) -> Result<()> {
         return Ok(());
     }
 
-    // Install
+    // Step 1: Install plugin
+    Ui::step("Installing plugin...");
+
     if let Some(local) = local_path {
-        Ui::step(format!("Installing from local: {}", local).as_str());
+        Ui::step(&format!("Installing from local: {}", local));
         installer.install_from_local(Path::new(&local))?;
     } else {
         let pb = ProgressBar::new_spinner();
@@ -45,14 +63,56 @@ pub async fn run(local_path: Option<String>, dry_run: bool) -> Result<()> {
         pb.finish_with_message("Downloaded and extracted");
     }
 
+    Ui::success("Plugin installed");
+
+    if dry_run || skip_profile {
+        if skip_profile {
+            Ui::info("Skipped profile installation (--skip-profile)");
+            Ui::info("Run 'rhinolabs-ai profile install main' to install skills later.");
+        }
+        println!();
+        return Ok(());
+    }
+
+    // Step 2: Install main profile (skills + config)
+    println!();
+    Ui::step("Installing main profile skills...");
+
+    let targets = parse_targets(&target_strs)?;
+    let targets_ref = if targets.is_empty() {
+        None
+    } else {
+        Some(targets.as_slice())
+    };
+
+    let result = Profiles::install("main", None, targets_ref)?;
+
+    if !result.skills_installed.is_empty() {
+        Ui::success(&format!(
+            "{} skills installed",
+            result.skills_installed.len()
+        ));
+        for skill in &result.skills_installed {
+            println!("  {} {}", "✓".green(), skill);
+        }
+    }
+
+    if !result.skills_failed.is_empty() {
+        Ui::warning(&format!("{} skills failed", result.skills_failed.len()));
+        for error in &result.skills_failed {
+            println!("  {} {} - {}", "✗".red(), error.skill_id, error.error);
+        }
+    }
+
+    if result.skills_installed.is_empty() && result.skills_failed.is_empty() {
+        Ui::warning("No skills found in plugin. The plugin may be incomplete.");
+    }
+
+    // Summary
     println!();
     Ui::success("Installation complete!");
     println!();
-    Ui::info("Next steps:");
-    println!("  1. Restart Claude Code");
-    println!("  2. Run: rhinolabs status");
-    println!();
-    Ui::info("Documentation: rhinolabs-ai status");
+    Ui::info("Restart Claude Code to activate the plugin.");
 
     Ok(())
 }

@@ -229,8 +229,13 @@ pub fn install(
             };
 
             if profile.skills.is_empty() {
-                Ui::warning("This profile has no skills assigned.");
-                Ui::info("Assign skills to this profile in the GUI first.");
+                if profile_id == "main" {
+                    Ui::warning("Main Profile has no skills. The rhinolabs-claude plugin may not be installed.");
+                    Ui::info("Install the plugin first: rhinolabs-ai install");
+                } else {
+                    Ui::warning("This profile has no skills assigned.");
+                    Ui::info("Assign skills to this profile in the GUI first.");
+                }
                 return Ok(());
             }
 
