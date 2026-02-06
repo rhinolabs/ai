@@ -138,36 +138,27 @@ The `rhinolabs-ai` CLI is required for skill management. If not installed, the i
 
 ### Option 1: Download from Releases (Recommended)
 
-1. Go to the [Releases page](../../../releases/latest)
+Download the binary for your platform, make it executable, and move it to your PATH.
 
-2. Download the binary for your platform:
+**Example (Linux x64):**
+```bash
+curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-x64
+chmod +x rhinolabs-ai
+sudo mv rhinolabs-ai /usr/local/bin/
+rhinolabs-ai --version
+```
 
-   | Platform | Binary |
-   |----------|--------|
-   | macOS (Apple Silicon) | `rhinolabs-ai-darwin-arm64` |
-   | macOS (Intel) | `rhinolabs-ai-darwin-x64` |
-   | Linux (x64) | `rhinolabs-ai-linux-x64` |
-   | Linux (ARM64) | `rhinolabs-ai-linux-arm64` |
-   | Windows | `rhinolabs-ai-windows-x64.exe` |
+Replace the binary name for your platform:
 
-3. Make executable and move to PATH:
+| Platform | Binary |
+|----------|--------|
+| macOS (Apple Silicon) | `rhinolabs-ai-darwin-arm64` |
+| macOS (Intel) | `rhinolabs-ai-darwin-x64` |
+| Linux (x64) | `rhinolabs-ai-linux-x64` |
+| Linux (ARM64) | `rhinolabs-ai-linux-arm64` |
+| Windows | `rhinolabs-ai-windows-x64.exe` |
 
-   **macOS/Linux:**
-   ```bash
-   chmod +x rhinolabs-ai-*
-   sudo mv rhinolabs-ai-* /usr/local/bin/rhinolabs-ai
-   ```
-
-   **Windows (PowerShell as Admin):**
-   ```powershell
-   # Move to a directory in your PATH, e.g.:
-   Move-Item rhinolabs-ai-windows-x64.exe C:\Windows\rhinolabs-ai.exe
-   ```
-
-4. Verify installation:
-   ```bash
-   rhinolabs-ai --version
-   ```
+You can also browse all assets on the [Releases page](../../../releases/latest).
 
 ### Option 2: Build from Source
 
