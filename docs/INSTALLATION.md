@@ -71,9 +71,9 @@ sudo mv rhinolabs-ai /usr/local/bin/
 Invoke-WebRequest -Uri "https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rhinolabs-ai.exe"
 
 # Add to PATH (current user, persistent)
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -notlike "*$env:LOCALAPPDATA*") {
-    [Environment]::SetEnvironmentVariable("Path", "$userPath;$env:LOCALAPPDATA", "User")
+$pathEntries = [Environment]::GetEnvironmentVariable("Path", "User") -split ";"
+if ($pathEntries -notcontains $env:LOCALAPPDATA) {
+    [Environment]::SetEnvironmentVariable("Path", ($pathEntries + $env:LOCALAPPDATA) -join ";", "User")
 }
 ```
 
@@ -86,9 +86,9 @@ Restart your terminal after adding to PATH.
 curl.exe -L -o "$env:LOCALAPPDATA\rhinolabs-ai.exe" https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-windows-x64.exe
 
 # Add to PATH (current user, persistent)
-$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-if ($userPath -notlike "*$env:LOCALAPPDATA*") {
-    [Environment]::SetEnvironmentVariable("Path", "$userPath;$env:LOCALAPPDATA", "User")
+$pathEntries = [Environment]::GetEnvironmentVariable("Path", "User") -split ";"
+if ($pathEntries -notcontains $env:LOCALAPPDATA) {
+    [Environment]::SetEnvironmentVariable("Path", ($pathEntries + $env:LOCALAPPDATA) -join ";", "User")
 }
 ```
 
