@@ -92,19 +92,27 @@ impl Installer {
         Ok(())
     }
 
-    /// Uninstall plugin
+    /// Uninstall plugin and remove rhinolabs-ai config
     pub fn uninstall(&self) -> Result<()> {
         if !Paths::is_plugin_installed() {
             return Err(RhinolabsError::PluginNotInstalled);
         }
 
         if self.dry_run {
-            println!("[DRY RUN] Would remove plugin directory");
+            println!("[DRY RUN] Would remove plugin directory and config");
             return Ok(());
         }
 
+        // Remove plugin directory
         let plugin_dir = Paths::plugin_dir()?;
         fs::remove_dir_all(&plugin_dir)?;
+
+        // Remove rhinolabs-ai config directory (~/.config/rhinolabs-ai/)
+        if let Ok(config_dir) = Paths::rhinolabs_config_dir() {
+            if config_dir.exists() {
+                fs::remove_dir_all(&config_dir)?;
+            }
+        }
 
         Ok(())
     }
