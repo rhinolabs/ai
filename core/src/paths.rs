@@ -94,8 +94,9 @@ impl Paths {
     pub fn is_claude_code_installed() -> bool {
         if cfg!(target_os = "macos") {
             std::path::Path::new("/Applications/Claude Code.app").exists()
+                || which::which("claude").is_ok()
         } else if cfg!(target_os = "windows") {
-            // Check common installation paths
+            // Check desktop app installation paths
             let program_files = std::env::var("ProgramFiles").unwrap_or_default();
             let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
 
@@ -105,6 +106,7 @@ impl Paths {
                     local_appdata
                 ))
                 .exists()
+                || which::which("claude").is_ok()
         } else {
             // Linux - check if command exists
             which::which("claude").is_ok()
