@@ -89,6 +89,7 @@ jobs:
       - name: Build CLI
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-C target-feature=+crt-static' || '' }}
         run: |
           cargo build --release --bin rhinolabs-ai --target ${{ matrix.target }}
           cargo build --release --bin rlai --target ${{ matrix.target }}
@@ -160,6 +161,8 @@ jobs:
 
       - name: Build GUI
         working-directory: ./gui
+        env:
+          RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-C target-feature=+crt-static' || '' }}
         run: pnpm tauri build ${{ matrix.tauri_target && format('--target {0}', matrix.tauri_target) || '' }}
 
       - name: List bundle output (debug)
