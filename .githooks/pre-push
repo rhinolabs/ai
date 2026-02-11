@@ -1,21 +1,77 @@
 #!/bin/bash
 
-echo "🧪 Running all tests before push..."
-echo ""
+# Get the remote and branch being pushed to
+remote="$1"
+url="$2"
 
-# Run all tests using Makefile
-make test
+# Read stdin to get the local/remote refs
+while read local_ref local_sha remote_ref remote_sha; do
+    # Skip delete pushes
+    if [ "$local_sha" = "0000000000000000000000000000000000000000" ]; then
+        continue
+    fi
 
-# Capture exit code
-EXIT_CODE=$?
+    # Determine the range of commits being pushed
+    if [ "$remote_sha" = "0000000000000000000000000000000000000000" ]; then
+        # New branch — compare against main
+        range="origin/main...$local_sha"
+    else
+        range="$remote_sha..$local_sha"
+    fi
 
-if [ $EXIT_CODE -ne 0 ]; then
+    # Get list of changed files
+    changed_files=$(git diff --name-only "$range" 2>/dev/null)
+
+    if [ -z "$changed_files" ]; then
+        echo "✅ No file changes detected. Proceeding with push..."
+        exit 0
+    fi
+
+    # Check if ALL changed files are non-code (docs, config, etc.)
+    has_code_changes=false
+
+    for file in $changed_files; do
+        ext="${file##*.}"
+        # Check by extension
+        case "$ext" in
+            md|txt|mdx) continue ;;
+        esac
+        # Check by path
+        case "$file" in
+            docs/*|README*|LICENSE*|CHANGELOG*|*.md) continue ;;
+        esac
+        # If we get here, it's a code file
+        has_code_changes=true
+        break
+    done
+
+    if [ "$has_code_changes" = false ]; then
+        echo "📄 Only non-code files changed (docs, config, etc.). Skipping tests."
+        echo "   Changed files:"
+        for file in $changed_files; do
+            echo "     - $file"
+        done
+        echo ""
+        echo "✅ Proceeding with push..."
+        exit 0
+    fi
+
+    # Code files changed — run full test suite
+    echo "🧪 Running all tests before push..."
     echo ""
-    echo "❌ PUSH BLOCKED: Tests failed!"
-    echo "   Fix the failing tests before pushing."
-    exit 1
-fi
 
-echo ""
-echo "✅ All tests passed. Proceeding with push..."
-exit 0
+    make test
+
+    EXIT_CODE=$?
+
+    if [ $EXIT_CODE -ne 0 ]; then
+        echo ""
+        echo "❌ PUSH BLOCKED: Tests failed!"
+        echo "   Fix the failing tests before pushing."
+        exit 1
+    fi
+
+    echo ""
+    echo "✅ All tests passed. Proceeding with push..."
+    exit 0
+done

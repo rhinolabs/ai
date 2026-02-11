@@ -21,45 +21,45 @@
 
 Download the binary for your platform from [GitHub Releases](https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest):
 
-| Platform | Binary | Alias |
-|----------|--------|-------|
-| macOS (Apple Silicon) | `rhinolabs-ai-darwin-arm64` | `rlai-darwin-arm64` |
-| macOS (Intel) | `rhinolabs-ai-darwin-x64` | `rlai-darwin-x64` |
-| Linux (x64) | `rhinolabs-ai-linux-x64` | `rlai-linux-x64` |
-| Linux (ARM64) | `rhinolabs-ai-linux-arm64` | `rlai-linux-arm64` |
-| Windows (x64) | `rhinolabs-ai-windows-x64.exe` | `rlai-windows-x64.exe` |
+| Platform | Binary | Full name |
+|----------|--------|-----------|
+| macOS (Apple Silicon) | `rlai-darwin-arm64` | `rhinolabs-ai-darwin-arm64` |
+| macOS (Intel) | `rlai-darwin-x64` | `rhinolabs-ai-darwin-x64` |
+| Linux (x64) | `rlai-linux-x64` | `rhinolabs-ai-linux-x64` |
+| Linux (ARM64) | `rlai-linux-arm64` | `rhinolabs-ai-linux-arm64` |
+| Windows (x64) | `rlai-windows-x64.exe` | `rhinolabs-ai-windows-x64.exe` |
 
 #### Linux
 
 ```bash
 # x64
-curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-x64
-chmod +x rhinolabs-ai
-sudo mv rhinolabs-ai /usr/local/bin/
+curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-x64
+chmod +x rlai
+sudo mv rlai /usr/local/bin/
 
 # ARM64
-curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-arm64
-chmod +x rhinolabs-ai
-sudo mv rhinolabs-ai /usr/local/bin/
+curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-arm64
+chmod +x rlai
+sudo mv rlai /usr/local/bin/
 ```
 
 #### macOS
 
 ```bash
 # Apple Silicon (M1/M2/M3/M4)
-curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-darwin-arm64
-chmod +x rhinolabs-ai
-sudo mv rhinolabs-ai /usr/local/bin/
+curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-darwin-arm64
+chmod +x rlai
+sudo mv rlai /usr/local/bin/
 
 # Intel
-curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-darwin-x64
-chmod +x rhinolabs-ai
-sudo mv rhinolabs-ai /usr/local/bin/
+curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-darwin-x64
+chmod +x rlai
+sudo mv rlai /usr/local/bin/
 ```
 
 > **Note**: If macOS blocks the binary with a Gatekeeper warning, run:
 > ```bash
-> xattr -d com.apple.quarantine /usr/local/bin/rhinolabs-ai
+> xattr -d com.apple.quarantine /usr/local/bin/rlai
 > ```
 
 #### Windows
@@ -68,7 +68,7 @@ sudo mv rhinolabs-ai /usr/local/bin/
 
 ```powershell
 # Download the binary
-Invoke-WebRequest -Uri "https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rhinolabs-ai.exe"
+Invoke-WebRequest -Uri "https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rlai.exe"
 
 # Add to PATH (current user, persistent)
 $pathEntries = [Environment]::GetEnvironmentVariable("Path", "User") -split ";"
@@ -83,7 +83,7 @@ Restart your terminal after adding to PATH.
 
 ```powershell
 # Use curl.exe (not the PowerShell alias) to follow redirects correctly
-curl.exe -L -o "$env:LOCALAPPDATA\rhinolabs-ai.exe" https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-windows-x64.exe
+curl.exe -L -o "$env:LOCALAPPDATA\rlai.exe" https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-windows-x64.exe
 
 # Add to PATH (current user, persistent)
 $pathEntries = [Environment]::GetEnvironmentVariable("Path", "User") -split ";"
@@ -96,7 +96,39 @@ Restart your terminal after running these commands.
 
 > **Note**: In PowerShell, `curl` is an alias for `Invoke-WebRequest`. Always use `curl.exe` to invoke the real curl.
 
-> **Tip**: The short alias `rlai` is also available for all platforms. Download the corresponding `rlai-*` binary and install it the same way.
+> **Tip**: The full name `rhinolabs-ai` is also available for all platforms. Install it the same way:
+>
+> **Linux:**
+> ```bash
+> # x64
+> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-x64
+> chmod +x rhinolabs-ai
+> sudo mv rhinolabs-ai /usr/local/bin/
+>
+> # ARM64
+> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-arm64
+> chmod +x rhinolabs-ai
+> sudo mv rhinolabs-ai /usr/local/bin/
+> ```
+>
+> **macOS:**
+> ```bash
+> # Apple Silicon
+> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-darwin-arm64
+> chmod +x rhinolabs-ai && sudo mv rhinolabs-ai /usr/local/bin/
+> xattr -d com.apple.quarantine /usr/local/bin/rhinolabs-ai
+>
+> # Intel
+> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-darwin-x64
+> chmod +x rhinolabs-ai && sudo mv rhinolabs-ai /usr/local/bin/
+> xattr -d com.apple.quarantine /usr/local/bin/rhinolabs-ai
+> ```
+>
+> **Windows (PowerShell):**
+> ```powershell
+> Invoke-WebRequest -Uri "https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rhinolabs-ai.exe"
+> ```
+> (PATH setup is shared — if you already added `$env:LOCALAPPDATA` to PATH above, `rhinolabs-ai` will work immediately after restarting your terminal.)
 
 #### Build from source (all platforms)
 
@@ -105,15 +137,15 @@ Requires [Rust](https://rustup.rs/):
 ```bash
 cd cli && cargo build --release
 # Linux/macOS
-sudo cp target/release/rhinolabs-ai /usr/local/bin/
+sudo cp target/release/rlai /usr/local/bin/
 # Windows (PowerShell)
-# Copy-Item target\release\rhinolabs-ai.exe $env:LOCALAPPDATA\
+# Copy-Item target\release\rlai.exe $env:LOCALAPPDATA\
 ```
 
 ### 2. Install plugin + skills (one command)
 
 ```bash
-rhinolabs-ai install
+rlai install
 ```
 
 This does everything:
@@ -130,18 +162,18 @@ That's it.
 
 ```bash
 # Install for specific targets
-rhinolabs-ai install --target claude-code
-rhinolabs-ai install --target amp
-rhinolabs-ai install --target all
+rlai install --target claude-code
+rlai install --target amp
+rlai install --target all
 
 # Install plugin only, no skills
-rhinolabs-ai install --skip-profile
+rlai install --skip-profile
 
 # Install from local source (development)
-rhinolabs-ai install --local ./rhinolabs-claude
+rlai install --local ./rhinolabs-claude
 
 # Dry run
-rhinolabs-ai install --dry-run
+rlai install --dry-run
 ```
 
 ### Windows (legacy PowerShell installer)
@@ -159,19 +191,19 @@ cd rhinolabs-claude\scripts
 
 ```bash
 # List profiles
-rhinolabs-ai profile list
+rlai profile list
 
 # Show profile details
-rhinolabs-ai profile show main
+rlai profile show main
 
 # Re-install skills (update to latest)
-rhinolabs-ai profile install main --target all
+rlai profile install main --target all
 
 # Update installed skills
-rhinolabs-ai profile update
+rlai profile update
 
 # Uninstall
-rhinolabs-ai profile uninstall --target all
+rlai profile uninstall --target all
 ```
 
 ## Installation Paths
@@ -203,13 +235,13 @@ Skills are installed to `<config-dir>/skills/` per target:
 
 ### Skills not loading
 
-- Run `rhinolabs-ai profile install main`
+- Run `rlai profile install main`
 - Verify skills in `~/.claude/skills/`
 - Restart Claude Code
 
 ### Windows: CLI exits silently with no output
 
-If `rhinolabs-ai --version` produces no output, you may be running a pre-v0.1.1 binary that requires the Visual C++ Redistributable. Either:
+If `rlai --version` produces no output, you may be running a pre-v0.1.1 binary that requires the Visual C++ Redistributable. Either:
 
 - **Upgrade**: Download the latest binary (v0.1.1+), which includes static CRT linking
 - **Or install the runtime**: Download [Visual C++ Redistributable x64](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist) and restart your terminal
@@ -217,15 +249,15 @@ If `rhinolabs-ai --version` produces no output, you may be running a pre-v0.1.1 
 ### Updating
 
 ```bash
-rhinolabs-ai update        # Update plugin to latest release
-rhinolabs-ai profile update # Update skills to latest versions
+rlai update        # Update plugin to latest release
+rlai profile update # Update skills to latest versions
 ```
 
 ### Uninstalling
 
 ```bash
-rhinolabs-ai uninstall  # Remove plugin
-rhinolabs-ai profile uninstall --target all  # Remove skills
+rlai uninstall  # Remove plugin
+rlai profile uninstall --target all  # Remove skills
 ```
 
 ## Support
@@ -234,4 +266,4 @@ For issues: check [the issues page](https://github.com/javiermontescarrera/rhino
 
 ---
 
-**Last Updated**: 2026-02-11
+**Last Updated**: 2026-02-12
