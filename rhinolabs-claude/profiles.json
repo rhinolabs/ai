@@ -9,7 +9,9 @@
         "rhinolabs-security",
         "rhinolabs-architecture",
         "rhinolabs-standards",
-        "testing-strategies"
+        "testing-strategies",
+        "team-code-review",
+        "team-bug-investigation"
       ],
       "autoInvokeRules": [],
       "instructions": null,

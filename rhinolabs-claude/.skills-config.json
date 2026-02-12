@@ -71,6 +71,8 @@
     }
   },
   "categoryMap": {
-    "implement-design": "frontend"
+    "implement-design": "frontend",
+    "team-code-review": "custom",
+    "team-bug-investigation": "custom"
   }
 }

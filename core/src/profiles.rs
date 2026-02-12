@@ -2590,4 +2590,144 @@ mod tests {
         assert_eq!(main.skills.len(), 1);
         assert_eq!(main.skills[0], "custom-skill");
     }
+
+    // ============================================
+    // Config Loading Edge Case Tests
+    // ============================================
+
+    #[test]
+    fn test_load_config_creates_default_when_missing() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        // Don't create profiles.json — load_config should create it with a Main-Profile
+
+        let config = Profiles::load_config().expect("Should create default config");
+        assert!(
+            !config.profiles.is_empty(),
+            "Should have at least one profile"
+        );
+
+        let main = config.profiles.iter().find(|p| p.id == "main");
+        assert!(main.is_some(), "Should have a main profile");
+
+        let main = main.unwrap();
+        assert_eq!(main.name, "Main Profile");
+        assert_eq!(main.profile_type, ProfileType::User);
+
+        // The config file should now exist on disk
+        assert!(
+            env.config_path().exists(),
+            "profiles.json should be created on disk"
+        );
+    }
+
+    #[test]
+    fn test_load_config_valid_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let config = ProfilesConfig {
+            profiles: vec![
+                Profile {
+                    id: "main".to_string(),
+                    name: "Main Profile".to_string(),
+                    description: "User-level skills".to_string(),
+                    profile_type: ProfileType::User,
+                    skills: vec!["rhinolabs-standards".to_string()],
+                    auto_invoke_rules: Vec::new(),
+                    instructions: None,
+                    generate_copilot: false,
+                    generate_agents: false,
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                },
+                Profile {
+                    id: "react-stack".to_string(),
+                    name: "React Stack".to_string(),
+                    description: "React 19 project profile".to_string(),
+                    profile_type: ProfileType::Project,
+                    skills: vec!["react-19".to_string(), "typescript".to_string()],
+                    auto_invoke_rules: Vec::new(),
+                    instructions: Some("Use strict mode.".to_string()),
+                    generate_copilot: true,
+                    generate_agents: false,
+                    created_at: now.clone(),
+                    updated_at: now,
+                },
+            ],
+            default_user_profile: Some("main".to_string()),
+        };
+        env.create_profiles_config(&config);
+
+        let loaded = Profiles::load_config().expect("Should load valid config");
+        assert_eq!(loaded.profiles.len(), 2);
+
+        let react = loaded
+            .profiles
+            .iter()
+            .find(|p| p.id == "react-stack")
+            .unwrap();
+        assert_eq!(react.skills.len(), 2);
+        assert!(react.instructions.is_some());
+        assert!(react.generate_copilot);
+    }
+
+    #[test]
+    fn test_load_config_invalid_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Write invalid JSON to profiles.json
+        let config_path = env.config_path();
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(&config_path, "{ not valid json at all }").unwrap();
+
+        let result = Profiles::load_config();
+        assert!(result.is_err(), "Should fail on invalid JSON");
+    }
+
+    #[test]
+    fn test_load_config_missing_main_profile_migration() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Create config WITHOUT a main profile — migration should add it
+        let now = chrono::Utc::now().to_rfc3339();
+        let config = ProfilesConfig {
+            profiles: vec![Profile {
+                id: "my-project".to_string(),
+                name: "My Project".to_string(),
+                description: "A project profile".to_string(),
+                profile_type: ProfileType::Project,
+                skills: vec![],
+                auto_invoke_rules: Vec::new(),
+                instructions: None,
+                generate_copilot: false,
+                generate_agents: false,
+                created_at: now.clone(),
+                updated_at: now,
+            }],
+            default_user_profile: None,
+        };
+        env.create_profiles_config(&config);
+
+        let loaded = Profiles::load_config().expect("Should load and migrate");
+
+        // Should now have 2 profiles: migrated main + my-project
+        assert_eq!(loaded.profiles.len(), 2);
+
+        let main = loaded.profiles.iter().find(|p| p.id == "main");
+        assert!(main.is_some(), "Main profile should be added via migration");
+        assert_eq!(main.unwrap().profile_type, ProfileType::User);
+
+        // default_user_profile should be set
+        assert_eq!(loaded.default_user_profile, Some("main".to_string()));
+    }
 }

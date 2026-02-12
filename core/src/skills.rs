@@ -2293,6 +2293,272 @@ This is the content.
             Some(&SkillCategory::Testing)
         );
     }
+
+    // ============================================
+    // SkillCategory Deserialization Tests
+    // ============================================
+
+    #[test]
+    fn test_skill_category_deserialize_valid_variants() {
+        let cases = vec![
+            ("\"corporate\"", SkillCategory::Corporate),
+            ("\"frontend\"", SkillCategory::Frontend),
+            ("\"testing\"", SkillCategory::Testing),
+            ("\"aisdk\"", SkillCategory::AiSdk),
+            ("\"utilities\"", SkillCategory::Utilities),
+            ("\"custom\"", SkillCategory::Custom),
+        ];
+
+        for (json, expected) in cases {
+            let result: std::result::Result<SkillCategory, _> = serde_json::from_str(json);
+            assert!(result.is_ok(), "Should deserialize '{}' successfully", json);
+            assert_eq!(result.unwrap(), expected, "Mismatch for '{}'", json);
+        }
+    }
+
+    #[test]
+    fn test_skill_category_deserialize_invalid_value() {
+        // These must ALL fail — especially "workflow" which was the real bug
+        let invalid_values = vec![
+            "\"workflow\"",
+            "\"invalid\"",
+            "\"CORPORATE\"", // case-sensitive: "CORPORATE" != "corporate"
+            "\"Frontend\"",  // PascalCase not accepted
+            "\"\"",          // empty string
+        ];
+
+        for json in invalid_values {
+            let result: std::result::Result<SkillCategory, _> = serde_json::from_str(json);
+            assert!(
+                result.is_err(),
+                "Should REJECT invalid category '{}' but got {:?}",
+                json,
+                result.ok()
+            );
+        }
+    }
+
+    #[test]
+    fn test_skill_category_serialize_roundtrip() {
+        let categories = vec![
+            SkillCategory::Corporate,
+            SkillCategory::Frontend,
+            SkillCategory::Testing,
+            SkillCategory::AiSdk,
+            SkillCategory::Utilities,
+            SkillCategory::Custom,
+        ];
+
+        for category in categories {
+            let json = serde_json::to_string(&category).unwrap();
+            let deserialized: SkillCategory = serde_json::from_str(&json).unwrap();
+            assert_eq!(
+                category, deserialized,
+                "Roundtrip failed for {:?} (serialized as {})",
+                category, json
+            );
+        }
+    }
+
+    #[test]
+    fn test_skill_category_default() {
+        assert_eq!(SkillCategory::default(), SkillCategory::Custom);
+    }
+
+    // ============================================
+    // load_config() Tests
+    // ============================================
+
+    #[test]
+    fn test_load_config_file_not_found() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+        // No config file created — should return default
+
+        let config = Skills::load_config().expect("Should return default config");
+        assert!(config.disabled.is_empty());
+        assert!(config.custom.is_empty());
+        assert!(config.sources.is_empty());
+        assert!(config.category_map.is_empty());
+    }
+
+    #[test]
+    fn test_load_config_valid_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        let mut category_map = std::collections::HashMap::new();
+        category_map.insert("my-skill".to_string(), SkillCategory::Frontend);
+
+        let config = SkillsConfig {
+            disabled: vec!["skill-x".to_string()],
+            custom: vec!["skill-y".to_string()],
+            category_map,
+            ..Default::default()
+        };
+        env.create_config(&config);
+
+        let loaded = Skills::load_config().expect("Should load config");
+        assert_eq!(loaded.disabled, vec!["skill-x".to_string()]);
+        assert_eq!(loaded.custom, vec!["skill-y".to_string()]);
+        assert_eq!(
+            loaded.category_map.get("my-skill"),
+            Some(&SkillCategory::Frontend)
+        );
+    }
+
+    #[test]
+    fn test_load_config_invalid_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Write garbage JSON
+        let config_path = env.plugin_dir().join(".skills-config.json");
+        fs::write(&config_path, "{ this is not valid json }").unwrap();
+
+        let result = Skills::load_config();
+        assert!(result.is_err(), "Should fail on invalid JSON");
+    }
+
+    #[test]
+    fn test_load_config_invalid_category_in_map() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Write config with "workflow" as a category value — THE BUG
+        let raw_json = r#"{
+            "disabled": [],
+            "custom": [],
+            "sources": [],
+            "skillMeta": {},
+            "categoryMap": {
+                "my-skill": "workflow"
+            }
+        }"#;
+
+        let config_path = env.plugin_dir().join(".skills-config.json");
+        fs::write(&config_path, raw_json).unwrap();
+
+        let result = Skills::load_config();
+        assert!(
+            result.is_err(),
+            "Config with invalid category 'workflow' in categoryMap should fail deserialization"
+        );
+    }
+
+    #[test]
+    fn test_load_config_empty_json_object_fails() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // `{}` fails because `disabled`, `custom`, `sources` are required fields
+        // (they don't have #[serde(default)] on them individually)
+        let config_path = env.plugin_dir().join(".skills-config.json");
+        fs::write(&config_path, "{}").unwrap();
+
+        let result = Skills::load_config();
+        assert!(
+            result.is_err(),
+            "Empty JSON object should fail: disabled/custom/sources are required"
+        );
+    }
+
+    #[test]
+    fn test_load_config_minimal_valid_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Minimal valid JSON with all required fields
+        let raw_json = r#"{
+            "disabled": [],
+            "custom": [],
+            "sources": []
+        }"#;
+        let config_path = env.plugin_dir().join(".skills-config.json");
+        fs::write(&config_path, raw_json).unwrap();
+
+        let config = Skills::load_config().expect("Minimal valid JSON should work");
+        assert!(config.disabled.is_empty());
+        assert!(config.custom.is_empty());
+        assert!(config.sources.is_empty());
+        // serde(default) fields should be empty
+        assert!(config.skill_meta.is_empty());
+        assert!(config.category_map.is_empty());
+    }
+
+    // ============================================
+    // categoryMap Precedence Tests
+    // ============================================
+
+    #[test]
+    fn test_get_category_from_config_map() {
+        // A user-defined category in categoryMap should override defaults
+        let mut category_map = std::collections::HashMap::new();
+        category_map.insert("unknown-skill".to_string(), SkillCategory::Testing);
+
+        let config = SkillsConfig {
+            category_map,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            Skills::get_category("unknown-skill", &config),
+            SkillCategory::Testing
+        );
+    }
+
+    #[test]
+    fn test_get_category_hardcoded_check_when_no_map_entry() {
+        // When no categoryMap entry, hardcoded constants apply
+        let config = SkillsConfig::default();
+
+        assert_eq!(
+            Skills::get_category("rhinolabs-standards", &config),
+            SkillCategory::Corporate
+        );
+        assert_eq!(
+            Skills::get_category("rhinolabs-architecture", &config),
+            SkillCategory::Corporate
+        );
+        assert_eq!(
+            Skills::get_category("rhinolabs-security", &config),
+            SkillCategory::Corporate
+        );
+    }
+
+    #[test]
+    fn test_get_category_unknown_skill_returns_custom() {
+        let config = SkillsConfig::default();
+
+        assert_eq!(
+            Skills::get_category("some-random-skill-nobody-knows", &config),
+            SkillCategory::Custom
+        );
+    }
+
+    #[test]
+    fn test_get_category_config_map_overrides_hardcoded() {
+        // categoryMap should override even hardcoded corporate skills
+        let mut category_map = std::collections::HashMap::new();
+        category_map.insert("rhinolabs-standards".to_string(), SkillCategory::Utilities);
+
+        let config = SkillsConfig {
+            category_map,
+            ..Default::default()
+        };
+
+        // categoryMap takes priority over CORPORATE_SKILLS constant
+        assert_eq!(
+            Skills::get_category("rhinolabs-standards", &config),
+            SkillCategory::Utilities
+        );
+    }
 }
 
 #[cfg(test)]

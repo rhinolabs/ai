@@ -45,6 +45,9 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --verbose
 
+      - name: Run GUI integration & contract tests
+        run: cargo test -p rhinolabs-gui --test command_integration --test contract_validation --verbose
+
       - name: Run clippy
         run: cargo clippy --workspace -- -D warnings
 
