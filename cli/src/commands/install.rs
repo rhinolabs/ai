@@ -65,6 +65,11 @@ pub async fn run(
 
     Ui::success("Plugin installed");
 
+    // Sync profiles from plugin (ensures existing config gets updated skills)
+    if !dry_run {
+        Profiles::sync_from_plugin()?;
+    }
+
     if dry_run || skip_profile {
         if skip_profile {
             Ui::info("Skipped profile installation (--skip-profile)");
