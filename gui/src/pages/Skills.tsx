@@ -7,7 +7,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 type TabType = 'rhinolabs-skills' | 'sources' | 'browse';
 
-const CATEGORIES: SkillCategory[] = ['corporate', 'frontend', 'testing', 'ai-sdk', 'utilities', 'custom'];
+const CATEGORIES: SkillCategory[] = ['corporate', 'backend', 'frontend', 'testing', 'ai-sdk', 'utilities', 'custom'];
 
 const SOURCE_TYPE_COLORS: Record<SkillSourceType, string> = {
   official: '#10b981',

@@ -98,6 +98,7 @@ fn test_skill_has_frontend_fields() {
     let category_str = json["category"].as_str().unwrap();
     let valid_categories = [
         "corporate",
+        "backend",
         "frontend",
         "testing",
         "aisdk",
@@ -404,6 +405,7 @@ fn test_remote_skill_file_has_frontend_fields() {
 fn test_skill_category_serialized_values() {
     let expected_values = vec![
         (SkillCategory::Corporate, "corporate"),
+        (SkillCategory::Backend, "backend"),
         (SkillCategory::Frontend, "frontend"),
         (SkillCategory::Testing, "testing"),
         (SkillCategory::AiSdk, "aisdk"),

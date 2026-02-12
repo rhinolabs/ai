@@ -532,6 +532,11 @@ select.btn option {
   color: #8b5cf6;
 }
 
+.category-badge.backend {
+  background-color: rgba(249, 115, 22, 0.1);
+  color: #f97316;
+}
+
 .category-badge.frontend {
   background-color: rgba(59, 130, 246, 0.1);
   color: #3b82f6;

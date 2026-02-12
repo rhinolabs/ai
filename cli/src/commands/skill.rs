@@ -19,6 +19,7 @@ fn parse_category(category: &str) -> SkillCategory {
 fn category_display(category: &SkillCategory) -> &'static str {
     match category {
         SkillCategory::Corporate => "Corporate",
+        SkillCategory::Backend => "Backend",
         SkillCategory::Frontend => "Frontend",
         SkillCategory::Testing => "Testing",
         SkillCategory::AiSdk => "AI SDK",

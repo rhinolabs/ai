@@ -130,6 +130,7 @@ export interface Skill {
 
 export type SkillCategory =
   | 'corporate'
+  | 'backend'
   | 'frontend'
   | 'testing'
   | 'ai-sdk'

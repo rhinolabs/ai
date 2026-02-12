@@ -124,6 +124,7 @@ impl SkillSource {
 #[serde(rename_all = "lowercase")]
 pub enum SkillCategory {
     Corporate,
+    Backend,
     Frontend,
     Testing,
     AiSdk,
@@ -206,6 +207,7 @@ const CORPORATE_SKILLS: &[&str] = &[
     "rhinolabs-architecture",
     "rhinolabs-security",
 ];
+const BACKEND_SKILLS: &[&str] = &[];
 const FRONTEND_SKILLS: &[&str] = &[
     "react-patterns",
     "typescript-best-practices",
@@ -263,6 +265,8 @@ impl Skills {
         // Fallback to hardcoded constants (built-in skills)
         if CORPORATE_SKILLS.contains(&id) {
             SkillCategory::Corporate
+        } else if BACKEND_SKILLS.contains(&id) {
+            SkillCategory::Backend
         } else if FRONTEND_SKILLS.contains(&id) {
             SkillCategory::Frontend
         } else if TESTING_SKILLS.contains(&id) {
@@ -417,11 +421,12 @@ impl Skills {
         skills.sort_by(|a, b| {
             let cat_order = |cat: &SkillCategory| match cat {
                 SkillCategory::Corporate => 0,
-                SkillCategory::Frontend => 1,
-                SkillCategory::Testing => 2,
-                SkillCategory::AiSdk => 3,
-                SkillCategory::Utilities => 4,
-                SkillCategory::Custom => 5,
+                SkillCategory::Backend => 1,
+                SkillCategory::Frontend => 2,
+                SkillCategory::Testing => 3,
+                SkillCategory::AiSdk => 4,
+                SkillCategory::Utilities => 5,
+                SkillCategory::Custom => 6,
             };
 
             cat_order(&a.category)
@@ -2302,6 +2307,7 @@ This is the content.
     fn test_skill_category_deserialize_valid_variants() {
         let cases = vec![
             ("\"corporate\"", SkillCategory::Corporate),
+            ("\"backend\"", SkillCategory::Backend),
             ("\"frontend\"", SkillCategory::Frontend),
             ("\"testing\"", SkillCategory::Testing),
             ("\"aisdk\"", SkillCategory::AiSdk),
@@ -2342,6 +2348,7 @@ This is the content.
     fn test_skill_category_serialize_roundtrip() {
         let categories = vec![
             SkillCategory::Corporate,
+            SkillCategory::Backend,
             SkillCategory::Frontend,
             SkillCategory::Testing,
             SkillCategory::AiSdk,

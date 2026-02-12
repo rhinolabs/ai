@@ -140,11 +140,12 @@ This checklist does NOT apply to documentation-only changes (`.md` files, `docs/
 ### Categories (precedence order)
 
 1. **Corporate** (`rhinolabs-standards`, `rhinolabs-architecture`, `rhinolabs-security`) — ALWAYS take precedence
-2. **Frontend** (`react-patterns`, `typescript-best-practices`, `tailwind-4`, `zod-4`, `zustand-5`)
-3. **Testing** (`testing-strategies`, `playwright`)
-4. **AiSdk** (`ai-sdk-core`, `ai-sdk-react`, `nextjs-integration`)
-5. **Utilities** (`skill-creator`)
-6. **Custom** (default for unknown skills)
+2. **Backend** (node, api-rest, rust, databases)
+3. **Frontend** (`react-patterns`, `typescript-best-practices`, `tailwind-4`, `zod-4`, `zustand-5`)
+4. **Testing** (`testing-strategies`, `playwright`)
+5. **AiSdk** (`ai-sdk-core`, `ai-sdk-react`, `nextjs-integration`)
+6. **Utilities** (`skill-creator`)
+7. **Custom** (default for unknown skills)
 
 ### Category Resolution Priority
 

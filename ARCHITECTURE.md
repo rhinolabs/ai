@@ -530,6 +530,7 @@ Skills are organized into categories for UI grouping and filtering.
 ```rust
 pub enum SkillCategory {
     Corporate,   // Agency-wide standards (rhinolabs-*)
+    Backend,     // Backend skills (node, api-rest, rust, databases)
     Frontend,    // Frontend frameworks (react-*, typescript-*, tailwind-*, zod-*, zustand-*)
     Testing,     // Testing tools (playwright, testing-strategies)
     AiSdk,       // AI SDK skills (ai-sdk-*, nextjs-integration)
