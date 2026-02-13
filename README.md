@@ -65,10 +65,10 @@ sequenceDiagram
     GUI->>GH: Upload rhinolabs-config.zip
 
     Note over CLI,Dev: Configuration Consumption (Read-Only)
-    Dev->>CLI: rhinolabs-ai sync
+    Dev->>CLI: rlai sync
     CLI->>GH: Download latest config
     CLI->>Dev: Update local configuration
-    Dev->>CLI: rhinolabs-ai profile install X
+    Dev->>CLI: rlai profile install X
     CLI->>Dev: Install profile to project
 ```
 
@@ -140,7 +140,7 @@ Each profile contains:
 | **Location**     | `<project>/.claude-plugin/`                               |
 | **Purpose**      | Tech-stack specific skills + instructions                 |
 | **Instructions** | Generated with auto-invoke table based on assigned skills |
-| **Installation** | Manual via `rhinolabs-ai profile install`                 |
+| **Installation** | Manual via `rlai profile install`                         |
 
 ### Profile Creation Flow
 
@@ -166,33 +166,20 @@ When creating a profile with skills, the instructions template is automatically 
 
 ### For Team Developers
 
-```bash
-# Option 1: Download from releases
-# Go to the Releases page and download the binary for your platform
+**1. Install the CLI** — See **[Installation Guide](docs/INSTALLATION.md)** for platform-specific instructions (macOS, Linux, Windows).
 
-# Option 2: Build from source
-git clone <repo-url>
-cd rhinolabs-ai/cli
-cargo build --release
-# Binary at: target/release/rhinolabs-ai
-
-# Option 3: Homebrew (requires tap to be configured)
-# brew tap <owner>/tap
-# brew install rhinolabs-ai
-```
-
-Once installed:
+**2. Use it:**
 
 ```bash
-# 1. Run any command (auto-syncs configuration on first run)
-rhinolabs-ai profile list
+# Run any command (auto-syncs configuration on first run)
+rlai profile list
 
-# 2. Install Main-Profile (user-level, applies to all projects)
+# Install Main-Profile (user-level, applies to all projects)
 # (Prompted automatically on first sync)
 
-# 3. Install project-specific profile
+# Install project-specific profile
 cd ~/your-project
-rhinolabs-ai profile install react-stack
+rlai profile install react-stack
 ```
 
 ### For Lead Developers
@@ -216,40 +203,40 @@ flowchart LR
 ## CLI Commands
 
 ```bash
-# Aliases: rhinolabs-ai or rlai
+# Aliases: rlai (short) or rhinolabs-ai (full)
 
 # Configuration sync (auto-runs on first command of terminal session)
-rhinolabs-ai sync                    # Manual sync from GitHub
+rlai sync                    # Manual sync from GitHub
 
 # Profile management
-rhinolabs-ai profile list            # List all profiles
-rhinolabs-ai profile show <id>       # Show profile details
-rhinolabs-ai profile install <name>  # Install profile (default: Claude Code)
-rhinolabs-ai profile install <name> -t amp          # Install for Amp
-rhinolabs-ai profile install <name> -t amp -t claude-code  # Multiple targets
-rhinolabs-ai profile install <name> -t all          # All targets
-rhinolabs-ai profile install <name> -P /path        # Install to specific path
-rhinolabs-ai profile update          # Update installed profile
-rhinolabs-ai profile update -t amp   # Update for specific target
-rhinolabs-ai profile uninstall       # Remove profile from current directory
-rhinolabs-ai profile uninstall -t amp  # Uninstall only Amp artifacts
+rlai profile list            # List all profiles
+rlai profile show <id>       # Show profile details
+rlai profile install <name>  # Install profile (default: Claude Code)
+rlai profile install <name> -t amp          # Install for Amp
+rlai profile install <name> -t amp -t claude-code  # Multiple targets
+rlai profile install <name> -t all          # All targets
+rlai profile install <name> -P /path        # Install to specific path
+rlai profile update          # Update installed profile
+rlai profile update -t amp   # Update for specific target
+rlai profile uninstall       # Remove profile from current directory
+rlai profile uninstall -t amp  # Uninstall only Amp artifacts
 
 # Plugin management
-rhinolabs-ai install                 # Install base plugin
-rhinolabs-ai update                  # Update plugin
-rhinolabs-ai uninstall               # Remove plugin
-rhinolabs-ai status                  # Show installation status
-rhinolabs-ai doctor                  # Run diagnostics
+rlai install                 # Install base plugin
+rlai update                  # Update plugin
+rlai uninstall               # Remove plugin
+rlai status                  # Show installation status
+rlai doctor                  # Run diagnostics
 
 # MCP configuration
-rhinolabs-ai sync-mcp                # Sync MCP servers from source
+rlai sync-mcp                # Sync MCP servers from source
 
 # RAG (Project Memory)
-rhinolabs-ai rag init --project <id> --api-key <key>  # Initialize RAG
-rhinolabs-ai rag status              # Show RAG status
-rhinolabs-ai rag create-key --name "Team"  # Create API key (admin)
-rhinolabs-ai rag list-keys           # List API keys (admin)
-rhinolabs-ai rag remove              # Remove RAG from project
+rlai rag init --project <id> --api-key <key>  # Initialize RAG
+rlai rag status              # Show RAG status
+rlai rag create-key --name "Team"  # Create API key (admin)
+rlai rag list-keys           # List API keys (admin)
+rlai rag remove              # Remove RAG from project
 ```
 
 ## RAG (Project Memory)
@@ -316,13 +303,13 @@ sequenceDiagram
 
 ```bash
 # 1. Admin creates API key (one time)
-rhinolabs-ai rag set-admin-key <admin-secret>
-rhinolabs-ai rag create-key --name "Backend Team"
+rlai rag set-admin-key <admin-secret>
+rlai rag create-key --name "Backend Team"
 # → API Key: rl_abc123...
 
 # 2. Initialize RAG in project
 cd my-project
-rhinolabs-ai rag init --project my-project --api-key rl_abc123...
+rlai rag init --project my-project --api-key rl_abc123...
 
 # 3. Claude Code automatically uses RAG tools
 # - Ask Claude to save decisions
@@ -363,9 +350,9 @@ graph TB
         P3[ts-lib]
     end
 
-    WEB -.->|rhinolabs-ai profile install| P1
-    API -.->|rhinolabs-ai profile install| P2
-    SHARED -.->|rhinolabs-ai profile install| P3
+    WEB -.->|rlai profile install| P1
+    API -.->|rlai profile install| P2
+    SHARED -.->|rlai profile install| P3
 
     style P1 fill:#3182ce,stroke:#63b3ed,color:#fff
     style P2 fill:#dd6b20,stroke:#ed8936,color:#fff
@@ -376,9 +363,9 @@ graph TB
 cd ~/monorepo
 
 # Install different profiles for each subproject
-rhinolabs-ai profile install react-stack -P ./apps/web
-rhinolabs-ai profile install rust-backend -P ./apps/api
-rhinolabs-ai profile install ts-lib -P ./packages/shared
+rlai profile install react-stack -P ./apps/web
+rlai profile install rust-backend -P ./apps/api
+rlai profile install ts-lib -P ./packages/shared
 
 # Claude Code automatically combines:
 # - Main-Profile (user-level) + Project Profile (per directory)
@@ -507,6 +494,7 @@ make clean       # Clean build artifacts
 
 ## Documentation
 
+- [Installation Guide](docs/INSTALLATION.md) - CLI download and setup (macOS, Linux, Windows)
 - [Architecture](ARCHITECTURE.md) - System design and data flow
 - [CLI Guide](cli/README.md) - Detailed CLI documentation
 - [GUI Guide](gui/README.md) - Desktop app documentation
@@ -524,4 +512,4 @@ Proprietary - Rhinolabs Internal Use Only
 ---
 
 **Version**: 0.1.0
-**Last Updated**: 2026-02-05
+**Last Updated**: 2026-02-13
