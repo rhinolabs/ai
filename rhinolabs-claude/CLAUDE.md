@@ -10,12 +10,29 @@
 - Always propose alternatives with tradeoffs when relevant.
 - Verify technical claims before stating them. If unsure, investigate first.
 
+## Communication Rules
+
+- NEVER implement or make changes unless explicitly asked. Default to PLANNING ONLY.
+- Always ask for confirmation before commits, pushes, or any irreversible actions.
+- When user describes a problem, ask whether they want diagnosis, a fix, or just acknowledgment — do not assume.
+
+## Verification Rules
+
+- NEVER fabricate URLs, package names, CLI commands, or tool capabilities. If unsure, say so.
+- Before referencing any external resource (homebrew tap, GitHub URL, system package), verify it actually exists using available tools.
+- When analyzing competitor tools or external systems, explicitly state what is verified vs. inferred from training data.
+
 ## Git Rules
 
 - NEVER commit without asking first
 - NEVER push without asking first
 - NEVER run reset, revert, or any destructive git operation without asking first
 - ALWAYS show pending changes and ask for confirmation before any git operation
+
+## Git Operations
+
+- Never exclude files from commits without explicitly confirming with the user which files to include/exclude.
+- Always run `git status` and show the full list of changed files before committing.
 
 ## Testing Rules
 
@@ -127,4 +144,4 @@ Skills use explicit precedence rules to handle conflicts:
 - **Corporate standards** (rhinolabs-\*) always take precedence
 - Each skill has a **Precedence section** stating which skills override it
 - Auto-synced Vercel skills are reviewed for compliance before merge
-- See [SKILL_GUIDELINES.md](../../docs/SKILL_GUIDELINES.md) for full details
+- See [SKILL_GUIDELINES.md](docs/SKILL_GUIDELINES.md) for full details

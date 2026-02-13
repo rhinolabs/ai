@@ -16,7 +16,7 @@ This skill defers to:
 - **rhinolabs-standards** - For all code quality and documentation standards
 - **SKILL_GUIDELINES.md** - For skill creation rules, scope definitions, and conflict resolution
 
-When creating skills, ALWAYS consult docs/SKILL_GUIDELINES.md first.
+When creating skills, ALWAYS consult [SKILL_GUIDELINES.md](../../docs/SKILL_GUIDELINES.md) first.
 
 ## When to Create a Skill
 

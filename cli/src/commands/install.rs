@@ -3,7 +3,6 @@ use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use rhinolabs_core::{DeployTarget, Installer, Paths, Profiles};
-use std::path::Path;
 
 /// Parse target strings into DeployTarget vec.
 fn parse_targets(strs: &[String]) -> Result<Vec<DeployTarget>> {
@@ -15,12 +14,7 @@ fn parse_targets(strs: &[String]) -> Result<Vec<DeployTarget>> {
         .collect()
 }
 
-pub async fn run(
-    local_path: Option<String>,
-    target_strs: Vec<String>,
-    skip_profile: bool,
-    dry_run: bool,
-) -> Result<()> {
+pub async fn run(target_strs: Vec<String>, skip_profile: bool, dry_run: bool) -> Result<()> {
     Ui::header("Installing Rhinolabs AI");
 
     let installer = Installer::new().dry_run(dry_run);
@@ -42,26 +36,21 @@ pub async fn run(
         return Ok(());
     }
 
-    // Step 1: Install plugin
+    // Step 1: Install plugin from GitHub releases
     Ui::step("Installing plugin...");
 
-    if let Some(local) = local_path {
-        Ui::step(&format!("Installing from local: {}", local));
-        installer.install_from_local(Path::new(&local))?;
-    } else {
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .template("{spinner:.cyan} {msg}")
-                .unwrap(),
-        );
-        pb.set_message("Downloading from GitHub releases...");
-        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.cyan} {msg}")
+            .unwrap(),
+    );
+    pb.set_message("Downloading from GitHub releases...");
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
 
-        installer.install().await?;
+    installer.install().await?;
 
-        pb.finish_with_message("Downloaded and extracted");
-    }
+    pb.finish_with_message("Downloaded and extracted");
 
     Ui::success("Plugin installed");
 

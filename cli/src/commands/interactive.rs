@@ -23,7 +23,7 @@ pub async fn run() -> Result<()> {
             .interact()?;
 
         match selection {
-            0 => super::install::run(None, vec![], false, false).await?,
+            0 => super::install::run(vec![], false, false).await?,
             1 => super::update::run(false).await?,
             2 => {
                 Ui::info("Please use: rhinolabs sync-mcp --url <URL>");

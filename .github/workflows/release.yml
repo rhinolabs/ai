@@ -237,7 +237,8 @@ jobs:
             skills \
             scripts \
             output-styles \
-            statusline.sh
+            statusline.sh \
+            docs
 
       - name: Upload plugin zip
         uses: actions/upload-release-asset@v1
