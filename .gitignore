@@ -14,7 +14,7 @@ desktop.ini
 node_modules/
 
 # Roadmap
-rlai-roadmap/
+roadmap/
 
 # Logs
 *.log
