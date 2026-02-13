@@ -107,6 +107,7 @@
       "Bash(ng:*)",
       "Bash(nx:*)",
       "Bash(turbo:*)",
+      "Bash(ls:*)",
       "Bash(tree:*)",
       "WebFetch",
       "WebSearch"
