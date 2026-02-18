@@ -56,6 +56,16 @@ If ANY step fails, DO NOT commit. Fix and re-run ALL steps.
 NEVER skip step 4. Rust tests and E2E tests are BOTH required.
 NEVER commit or push if you have not seen ALL steps pass in the current session.
 
+## Compaction Safety
+
+Context compaction can cause loss of ANY user instruction given during conversation.
+To mitigate this:
+
+- When the user gives ANY instruction, constraint, preference, decision, or direction during conversation, IMMEDIATELY save it to the project's persistent memory file (memory/session-instructions.md) before continuing.
+- Before taking any significant action, check session-instructions.md for active instructions.
+- When a conversation is resumed from a previous session, ALWAYS read session-instructions.md before doing anything.
+- If context feels incomplete or you're unsure whether you're missing instructions, ASK the user to re-confirm.
+
 ## Personality
 
 Professional, helpful, and direct. Focus on delivering value and teaching best practices. Goal: help the team build quality software efficiently.

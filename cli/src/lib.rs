@@ -17,7 +17,7 @@ struct Cli {
 enum Commands {
     /// Install the Rhinolabs Claude plugin (plugin + main profile skills)
     Install {
-        /// Deploy targets (claude-code, amp, antigravity, opencode, all)
+        /// Deploy targets: claude-code (default), amp, antigravity, open-code, all
         #[arg(short, long)]
         target: Vec<String>,
 
@@ -110,7 +110,7 @@ enum ProfileAction {
         #[arg(short = 'P', long)]
         path: Option<String>,
 
-        /// Deploy targets (claude-code, amp, antigravity, open-code, all)
+        /// Deploy targets: claude-code (default), amp, antigravity, open-code, all
         #[arg(short, long)]
         target: Vec<String>,
     },
@@ -124,7 +124,7 @@ enum ProfileAction {
         #[arg(short = 'P', long)]
         path: Option<String>,
 
-        /// Deploy targets (claude-code, amp, antigravity, open-code, all)
+        /// Deploy targets: claude-code (default), amp, antigravity, open-code, all
         #[arg(short, long)]
         target: Vec<String>,
     },
@@ -135,7 +135,7 @@ enum ProfileAction {
         #[arg(short = 'P', long)]
         path: Option<String>,
 
-        /// Deploy targets (claude-code, amp, antigravity, open-code, all)
+        /// Deploy targets: claude-code (default), amp, antigravity, open-code, all
         #[arg(short, long)]
         target: Vec<String>,
     },
