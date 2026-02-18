@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # ── Config ──────────────────────────────────────────────────────────
-REPO="javiermontescarrera/rhinolabs-ai"
+REPO="rhinolabs/ai"
 CLEAN_ONLY=false
 
 if [[ "${1:-}" == "--clean-only" ]]; then

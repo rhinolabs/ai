@@ -6,10 +6,10 @@ use std::process::Command;
 
 /// Default GitHub owner for plugin releases.
 /// Change this when migrating to an organization account.
-pub const DEFAULT_GITHUB_OWNER: &str = "javiermontescarrera";
+pub const DEFAULT_GITHUB_OWNER: &str = "rhinolabs";
 
 /// Default GitHub repository for plugin releases.
-pub const DEFAULT_GITHUB_REPO: &str = "rhinolabs-ai";
+pub const DEFAULT_GITHUB_REPO: &str = "ai";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -286,8 +286,8 @@ mod tests {
         let result = Version::releases_api_url();
         assert!(result.is_ok());
         let url = result.unwrap();
-        assert!(url.contains("javiermontescarrera"));
-        assert!(url.contains("rhinolabs-ai"));
+        assert!(url.contains("rhinolabs"));
+        assert!(url.contains("/ai/"));
     }
 
     #[test]

@@ -236,7 +236,7 @@ fn test_project_status_has_frontend_fields() {
         has_git: true,
         current_branch: Some("main".to_string()),
         has_remote: true,
-        remote_url: Some("https://github.com/rhinolabs/rhinolabs-ai".to_string()),
+        remote_url: Some("https://github.com/rhinolabs/ai".to_string()),
         has_uncommitted_changes: false,
         plugin_version: Some("1.0.0".to_string()),
         latest_release: Some("1.0.0".to_string()),

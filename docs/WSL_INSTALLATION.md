@@ -101,7 +101,7 @@ ls ~/.claude/
 
 ```bash
 # x64 (most common for WSL)
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-x64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-linux-x64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 ```
@@ -109,7 +109,7 @@ sudo mv rlai /usr/local/bin/
 For ARM64 (e.g., Windows on ARM with WSL):
 
 ```bash
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-arm64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-linux-arm64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 ```
@@ -124,7 +124,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 source ~/.cargo/env
 
 # Clone and build
-git clone https://github.com/javiermontescarrera/rhinolabs-ai.git
+git clone https://github.com/rhinolabs/ai.git
 cd rhinolabs-ai/cli
 cargo build --release
 sudo cp ../target/release/rlai /usr/local/bin/
@@ -276,7 +276,7 @@ by default, which work correctly in WSL without any special configuration.
 ls -la /usr/local/bin/rlai
 
 # If missing, re-download
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-x64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-linux-x64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 ```

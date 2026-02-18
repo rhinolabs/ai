@@ -25,7 +25,7 @@ El código compila, los tests pasan, pero las herramientas NO se pueden instalar
 - No hay formula
 
 ### CRÍTICO 5: URLs hardcoded al owner incorrecto
-- 11 instancias de `github.com/rhinolabs/rhinolabs-ai` en archivos .md
+- 11 instancias de `github.com/rhinolabs/ai` en archivos .md
 - 1 instancia en `Cargo.toml` workspace (línea 10: `repository`)
 - Todas apuntan a un owner que no es el real y se van a romper en la migración
 
@@ -57,13 +57,13 @@ El código compila, los tests pasan, pero las herramientas NO se pueden instalar
 
 | Archivo | Cambio |
 |---------|--------|
-| `README.md:198` | `[Releases](https://github.com/rhinolabs/rhinolabs-ai/releases)` → `[Releases](../../releases)` |
-| `README.md:489` | `[GitHub Issues](https://github.com/rhinolabs/rhinolabs-ai/issues)` → `[Issues](../../issues)` |
+| `README.md:198` | `[Releases](https://github.com/rhinolabs/ai/releases)` → `[Releases](../../releases)` |
+| `README.md:489` | `[GitHub Issues](https://github.com/rhinolabs/ai/issues)` → `[Issues](../../issues)` |
 | `cli/README.md:13,20,27` | URLs de descarga de releases → links relativos a `../../releases/latest` |
 | `cli/README.md:215` | `git clone https://...` → `git clone` con URL relativa o instrucción genérica |
 | `cli/README.md:275,276` | URLs de repo e issues → relativas |
 | `docs/INSTALLATION.md:29,62` | `git clone https://...` → instrucción genérica |
-| `Cargo.toml:10` | `repository = "https://github.com/rhinolabs/rhinolabs-ai"` → eliminar o dejar vacío (se actualiza post-migración) |
+| `Cargo.toml:10` | `repository = "https://github.com/rhinolabs/ai"` → eliminar o dejar vacío (se actualiza post-migración) |
 
 ### Paso 3: Actualizar README Quick Start
 

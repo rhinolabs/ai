@@ -19,7 +19,7 @@
 
 ### 1. Install the CLI
 
-Download the binary for your platform from [GitHub Releases](https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest):
+Download the binary for your platform from [GitHub Releases](https://github.com/rhinolabs/ai/releases/latest):
 
 | Platform | Binary | Full name |
 |----------|--------|-----------|
@@ -33,12 +33,12 @@ Download the binary for your platform from [GitHub Releases](https://github.com/
 
 ```bash
 # x64
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-x64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-linux-x64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 
 # ARM64
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-linux-arm64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-linux-arm64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 ```
@@ -47,12 +47,12 @@ sudo mv rlai /usr/local/bin/
 
 ```bash
 # Apple Silicon (M1/M2/M3/M4)
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-darwin-arm64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-darwin-arm64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 
 # Intel
-curl -L -o rlai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-darwin-x64
+curl -L -o rlai https://github.com/rhinolabs/ai/releases/latest/download/rlai-darwin-x64
 chmod +x rlai
 sudo mv rlai /usr/local/bin/
 ```
@@ -68,7 +68,7 @@ sudo mv rlai /usr/local/bin/
 
 ```powershell
 # Download the binary
-Invoke-WebRequest -Uri "https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rlai.exe"
+Invoke-WebRequest -Uri "https://github.com/rhinolabs/ai/releases/latest/download/rlai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rlai.exe"
 
 # Add to PATH (current user, persistent)
 $pathEntries = [Environment]::GetEnvironmentVariable("Path", "User") -split ";"
@@ -83,7 +83,7 @@ Restart your terminal after adding to PATH.
 
 ```powershell
 # Use curl.exe (not the PowerShell alias) to follow redirects correctly
-curl.exe -L -o "$env:LOCALAPPDATA\rlai.exe" https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rlai-windows-x64.exe
+curl.exe -L -o "$env:LOCALAPPDATA\rlai.exe" https://github.com/rhinolabs/ai/releases/latest/download/rlai-windows-x64.exe
 
 # Add to PATH (current user, persistent)
 $pathEntries = [Environment]::GetEnvironmentVariable("Path", "User") -split ";"
@@ -101,12 +101,12 @@ Restart your terminal after running these commands.
 > **Linux:**
 > ```bash
 > # x64
-> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-x64
+> curl -L -o rhinolabs-ai https://github.com/rhinolabs/ai/releases/latest/download/rhinolabs-ai-linux-x64
 > chmod +x rhinolabs-ai
 > sudo mv rhinolabs-ai /usr/local/bin/
 >
 > # ARM64
-> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-linux-arm64
+> curl -L -o rhinolabs-ai https://github.com/rhinolabs/ai/releases/latest/download/rhinolabs-ai-linux-arm64
 > chmod +x rhinolabs-ai
 > sudo mv rhinolabs-ai /usr/local/bin/
 > ```
@@ -114,19 +114,19 @@ Restart your terminal after running these commands.
 > **macOS:**
 > ```bash
 > # Apple Silicon
-> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-darwin-arm64
+> curl -L -o rhinolabs-ai https://github.com/rhinolabs/ai/releases/latest/download/rhinolabs-ai-darwin-arm64
 > chmod +x rhinolabs-ai && sudo mv rhinolabs-ai /usr/local/bin/
 > xattr -d com.apple.quarantine /usr/local/bin/rhinolabs-ai
 >
 > # Intel
-> curl -L -o rhinolabs-ai https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-darwin-x64
+> curl -L -o rhinolabs-ai https://github.com/rhinolabs/ai/releases/latest/download/rhinolabs-ai-darwin-x64
 > chmod +x rhinolabs-ai && sudo mv rhinolabs-ai /usr/local/bin/
 > xattr -d com.apple.quarantine /usr/local/bin/rhinolabs-ai
 > ```
 >
 > **Windows (PowerShell):**
 > ```powershell
-> Invoke-WebRequest -Uri "https://github.com/javiermontescarrera/rhinolabs-ai/releases/latest/download/rhinolabs-ai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rhinolabs-ai.exe"
+> Invoke-WebRequest -Uri "https://github.com/rhinolabs/ai/releases/latest/download/rhinolabs-ai-windows-x64.exe" -OutFile "$env:LOCALAPPDATA\rhinolabs-ai.exe"
 > ```
 > (PATH setup is shared — if you already added `$env:LOCALAPPDATA` to PATH above, `rhinolabs-ai` will work immediately after restarting your terminal.)
 
@@ -262,7 +262,7 @@ rlai profile uninstall --target all  # Remove skills
 
 ## Support
 
-For issues: check [the issues page](https://github.com/javiermontescarrera/rhinolabs-ai/issues)
+For issues: check [the issues page](https://github.com/rhinolabs/ai/issues)
 
 ---
 

@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # ── Config ──────────────────────────────────────────────────────────
-$Repo = "javiermontescarrera/rhinolabs-ai"
+$Repo = "rhinolabs/ai"
 
 if ($Help) {
     Write-Host "Rhinolabs AI - Clean Install Script" -ForegroundColor Cyan

@@ -217,7 +217,7 @@
       case 'get_project_status':
         return {
           isConfigured: true,
-          remoteUrl: 'https://github.com/rhinolabs/rhinolabs-ai',
+          remoteUrl: 'https://github.com/rhinolabs/ai',
           hasGit: true,
           currentBranch: 'main',
           hasUncommittedChanges: false,
