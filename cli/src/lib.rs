@@ -162,7 +162,7 @@ enum SkillAction {
         #[arg(long)]
         name: String,
 
-        /// Skill category: corporate, frontend, testing, ai-sdk, utilities, custom
+        /// Skill category: corporate, backend, frontend, testing, ai-sdk, utilities, custom
         #[arg(long, default_value = "custom")]
         category: String,
 
@@ -176,7 +176,7 @@ enum SkillAction {
         /// Skill ID to update
         skill_id: String,
 
-        /// New category: corporate, frontend, testing, ai-sdk, utilities, custom
+        /// New category: corporate, backend, frontend, testing, ai-sdk, utilities, custom
         category: String,
     },
 }
