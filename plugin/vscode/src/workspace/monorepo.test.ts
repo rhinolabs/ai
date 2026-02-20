@@ -58,6 +58,11 @@ function writeSkills(subDir: string, skillIds: string[]): void {
   }
 }
 
+/** Create a project marker (e.g. package.json, Cargo.toml) inside a subdir */
+function writeProjectMarker(subDir: string, marker = "package.json"): void {
+  writeFile(path.join(tmpDir, subDir, marker), "{}");
+}
+
 // ── Setup / Teardown ─────────────────────────────────────────
 
 beforeEach(() => {
@@ -123,6 +128,47 @@ describe("detectSubProjects", () => {
     expect(names).toContain("api");
   });
 
+  it("should detect subprojects by package.json", () => {
+    writeProjectMarker("api", "package.json");
+
+    const results = detectSubProjects(tmpDir, 3);
+
+    expect(results).toHaveLength(2); // root + api
+    const api = results.find((sp) => sp.name === "api");
+    expect(api).toBeDefined();
+    expect(api!.profileId).toBeNull();
+  });
+
+  it("should detect subprojects by Cargo.toml", () => {
+    writeProjectMarker("cli", "Cargo.toml");
+
+    const results = detectSubProjects(tmpDir, 3);
+
+    expect(results).toHaveLength(2); // root + cli
+    expect(results.find((sp) => sp.name === "cli")).toBeDefined();
+  });
+
+  it("should detect subprojects by go.mod", () => {
+    writeProjectMarker("svc", "go.mod");
+
+    const results = detectSubProjects(tmpDir, 3);
+
+    expect(results).toHaveLength(2);
+    expect(results.find((sp) => sp.name === "svc")).toBeDefined();
+  });
+
+  it("should not duplicate subprojects with multiple markers", () => {
+    // Has both plugin.json AND package.json — should appear once
+    writePluginJson("web", "frontend", "Frontend");
+    writeProjectMarker("web", "package.json");
+
+    const results = detectSubProjects(tmpDir, 3);
+
+    const webEntries = results.filter((sp) => sp.name === "web");
+    expect(webEntries).toHaveLength(1);
+    expect(webEntries[0].profileId).toBe("frontend");
+  });
+
   it("should respect maxDepth", () => {
     // Create a deeply nested subproject at depth 3
     writePluginJson("a/b/deep", "deep-profile", "Deep");
@@ -140,24 +186,26 @@ describe("detectSubProjects", () => {
   it("should skip ignored directories", () => {
     createDir("node_modules", "some-pkg");
     writeFile(
-      path.join(tmpDir, "node_modules", "some-pkg", ".claude-plugin", "plugin.json"),
-      JSON.stringify({
-        name: "ignored",
-        description: "test",
-        version: "0.1.0",
-        author: { name: "test" },
-        profile: { id: "should-not-find", name: "Ignored" },
-      }),
+      path.join(tmpDir, "node_modules", "some-pkg", "package.json"),
+      "{}",
     );
 
     const results = detectSubProjects(tmpDir, 3);
 
     expect(results).toHaveLength(1); // only root
-    expect(results.find((sp) => sp.profileId === "should-not-find")).toBeUndefined();
   });
 
   it("should skip dot directories", () => {
     writePluginJson(".hidden", "hidden-profile", "Hidden");
+
+    const results = detectSubProjects(tmpDir, 3);
+
+    expect(results).toHaveLength(1); // only root
+  });
+
+  it("should skip plain directories without project markers", () => {
+    createDir("docs");
+    createDir("scripts");
 
     const results = detectSubProjects(tmpDir, 3);
 

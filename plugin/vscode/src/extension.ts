@@ -207,7 +207,12 @@ async function refreshInstalled(): Promise<void> {
 async function refreshAvailable(): Promise<void> {
   try {
     const profiles = await cli.profileList();
-    availableProvider.update(profiles);
+    // Only show project-type profiles — user profiles (e.g. Main Profile)
+    // are installed globally via `rlai install`, not per-subproject.
+    const projectProfiles = profiles.filter(
+      (p) => p.profileType === "project",
+    );
+    availableProvider.update(projectProfiles);
   } catch {
     // CLI not available — show empty view, don't spam errors on startup
     availableProvider.update([]);
@@ -226,10 +231,13 @@ async function installProfile(
     }
 
     if (!profileId) {
-      const profiles = await cli.profileList();
+      const allProfiles = await cli.profileList();
+      const profiles = allProfiles.filter(
+        (p) => p.profileType === "project",
+      );
       if (profiles.length === 0) {
         vscode.window.showInformationMessage(
-          "No profiles available. Create one with: rlai profile create",
+          "No project profiles available. Create one with: rlai profile create",
         );
         return;
       }
@@ -273,12 +281,36 @@ async function installProfile(
       installPath = target.path;
     }
 
+    // Select deploy targets
+    const targetOptions: vscode.QuickPickItem[] = [
+      {
+        label: "Claude Code",
+        description: "claude-code",
+        picked: true,
+      },
+      { label: "Amp", description: "amp" },
+      { label: "Antigravity", description: "antigravity" },
+      { label: "OpenCode", description: "open-code" },
+    ];
+
+    const selectedTargets = await vscode.window.showQuickPick(targetOptions, {
+      placeHolder: "Select deploy targets",
+      canPickMany: true,
+    });
+
+    if (!selectedTargets || selectedTargets.length === 0) {
+      return;
+    }
+
+    const targets = selectedTargets.map((t) => t.description!);
+
     // Install
-    const result = await cli.profileInstall(profileId, installPath);
+    const result = await cli.profileInstall(profileId, installPath, targets);
 
     const skillCount = result.skillsInstalled.length;
     const failCount = result.skillsFailed.length;
-    let message = `Installed "${result.profileName}" with ${skillCount} skill${skillCount !== 1 ? "s" : ""}`;
+    const targetNames = selectedTargets.map((t) => t.label).join(", ");
+    let message = `Installed "${result.profileName}" with ${skillCount} skill${skillCount !== 1 ? "s" : ""} → ${targetNames}`;
     if (failCount > 0) {
       message += ` (${failCount} failed)`;
     }

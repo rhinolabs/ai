@@ -67,6 +67,29 @@ const IGNORED_DIRS = new Set([
   ".cache",
 ]);
 
+/**
+ * Files that indicate a directory is a project.
+ * A subproject is detected if it has ANY of these markers.
+ */
+const PROJECT_MARKERS = [
+  ".claude-plugin/plugin.json", // rhinolabs profile installed
+  "CLAUDE.md",                  // rhinolabs instructions file
+  "package.json",               // Node.js / frontend
+  "Cargo.toml",                 // Rust
+  "go.mod",                     // Go
+  "pyproject.toml",             // Python
+  "pom.xml",                    // Java / Maven
+  "build.gradle",               // Java / Gradle
+  "Gemfile",                    // Ruby
+];
+
+/** Check if a directory looks like a project */
+function isProject(dir: string): boolean {
+  return PROJECT_MARKERS.some((marker) =>
+    fs.existsSync(path.join(dir, marker)),
+  );
+}
+
 function scanDirectory(
   dir: string,
   workspaceRoot: string,
@@ -94,9 +117,8 @@ function scanDirectory(
     }
 
     const childPath = path.join(dir, entry.name);
-    const pluginJson = path.join(childPath, ".claude-plugin", "plugin.json");
 
-    if (fs.existsSync(pluginJson)) {
+    if (isProject(childPath)) {
       results.push(readSubProject(childPath, workspaceRoot));
     }
 
