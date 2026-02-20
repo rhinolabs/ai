@@ -54,6 +54,17 @@ export interface ProfileInstallResult {
 }
 
 // ============================================
+// rlai profile uninstall
+// ============================================
+
+export interface ProfileUninstallResult {
+  success: boolean;
+  profileId?: string;
+  profileName?: string;
+  targetPath: string;
+}
+
+// ============================================
 // rlai profile sync
 // ============================================
 

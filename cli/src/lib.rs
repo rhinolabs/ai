@@ -309,7 +309,7 @@ pub async fn run() -> anyhow::Result<()> {
                 profile::update(profile, path, target)?;
             }
             ProfileAction::Uninstall { path, target } => {
-                profile::uninstall(path, target)?;
+                profile::uninstall(path, target, json)?;
             }
             ProfileAction::Sync { path } => {
                 profile::sync(path, json)?;

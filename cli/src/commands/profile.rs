@@ -2,9 +2,21 @@ use crate::ui::Ui;
 use anyhow::Result;
 use colored::Colorize;
 use rhinolabs_core::{DeployTarget, ProfileType, Profiles};
+use serde::Serialize;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProfileUninstallResult {
+    pub success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_name: Option<String>,
+    pub target_path: String,
+}
 
 /// Parse target strings into DeployTarget vec.
 /// Handles "all" keyword and individual target names.
@@ -396,9 +408,7 @@ pub fn update(
 }
 
 /// Uninstall profile from a target path
-pub fn uninstall(target_path: Option<String>, target_strs: Vec<String>) -> Result<()> {
-    Ui::header("Uninstalling Profile");
-
+pub fn uninstall(target_path: Option<String>, target_strs: Vec<String>, json: bool) -> Result<()> {
     let targets = parse_targets(&target_strs)?;
     let targets_ref = if targets.is_empty() {
         None
@@ -406,10 +416,15 @@ pub fn uninstall(target_path: Option<String>, target_strs: Vec<String>) -> Resul
         Some(targets.as_slice())
     };
 
-    // Use current directory if no path specified
     let path = target_path
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    if json {
+        return uninstall_json(&path, targets_ref);
+    }
+
+    Ui::header("Uninstalling Profile");
 
     let path_display = path.display().to_string();
 
@@ -490,6 +505,24 @@ pub fn uninstall(target_path: Option<String>, target_strs: Vec<String>) -> Resul
 
     Ui::success("Profile uninstalled!");
 
+    Ok(())
+}
+
+/// Uninstall a profile in JSON mode (non-interactive, no prompts)
+fn uninstall_json(path: &std::path::Path, targets: Option<&[DeployTarget]>) -> Result<()> {
+    let profile_info = detect_installed_profile(path);
+    let profile_id = profile_info.as_ref().map(|(id, _)| id.clone());
+    let profile_name = profile_info.map(|(_, name)| name);
+
+    Profiles::uninstall(path, targets)?;
+
+    let result = ProfileUninstallResult {
+        success: true,
+        profile_id,
+        profile_name,
+        target_path: path.display().to_string(),
+    };
+    println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())
 }
 
@@ -698,5 +731,58 @@ mod tests {
     fn test_format_targets_empty() {
         let targets: Vec<DeployTarget> = vec![];
         assert_eq!(format_targets(&targets), "");
+    }
+
+    // ── ProfileUninstallResult serialization tests ──────────
+
+    #[test]
+    fn test_uninstall_result_serialization_full() {
+        let result = ProfileUninstallResult {
+            success: true,
+            profile_id: Some("react-stack".to_string()),
+            profile_name: Some("React Stack".to_string()),
+            target_path: "/home/user/project".to_string(),
+        };
+        let json: serde_json::Value = serde_json::to_value(&result).unwrap();
+
+        assert_eq!(json["success"], true);
+        assert_eq!(json["profileId"], "react-stack");
+        assert_eq!(json["profileName"], "React Stack");
+        assert_eq!(json["targetPath"], "/home/user/project");
+    }
+
+    #[test]
+    fn test_uninstall_result_omits_none_fields() {
+        let result = ProfileUninstallResult {
+            success: true,
+            profile_id: None,
+            profile_name: None,
+            target_path: "/tmp/test".to_string(),
+        };
+        let json: serde_json::Value = serde_json::to_value(&result).unwrap();
+
+        assert_eq!(json["success"], true);
+        assert!(json.get("profileId").is_none());
+        assert!(json.get("profileName").is_none());
+        assert_eq!(json["targetPath"], "/tmp/test");
+    }
+
+    #[test]
+    fn test_uninstall_result_uses_camel_case() {
+        let result = ProfileUninstallResult {
+            success: true,
+            profile_id: Some("test".to_string()),
+            profile_name: Some("Test".to_string()),
+            target_path: "/tmp".to_string(),
+        };
+        let json_str = serde_json::to_string(&result).unwrap();
+
+        // Verify camelCase keys (not snake_case)
+        assert!(json_str.contains("profileId"));
+        assert!(json_str.contains("profileName"));
+        assert!(json_str.contains("targetPath"));
+        assert!(!json_str.contains("profile_id"));
+        assert!(!json_str.contains("profile_name"));
+        assert!(!json_str.contains("target_path"));
     }
 }

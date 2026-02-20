@@ -1,19 +1,25 @@
 import * as vscode from "vscode";
 import { RlaiCli } from "./cli/runner.js";
+import {
+  AvailableTreeProvider,
+  AvailableProfileItem,
+} from "./providers/AvailableTreeProvider.js";
 import { InstalledTreeProvider } from "./providers/InstalledTreeProvider.js";
 import { ProfileStatus } from "./statusbar/ProfileStatus.js";
 import { detectSubProjects } from "./workspace/monorepo.js";
 
 let cli: RlaiCli;
 let installedProvider: InstalledTreeProvider;
+let availableProvider: AvailableTreeProvider;
 let profileStatus: ProfileStatus;
 
 export function activate(context: vscode.ExtensionContext): void {
   cli = new RlaiCli();
   installedProvider = new InstalledTreeProvider();
+  availableProvider = new AvailableTreeProvider();
   profileStatus = new ProfileStatus();
 
-  // ── Register TreeView ───────────────────────────────────
+  // ── Register TreeViews ──────────────────────────────────
 
   const installedView = vscode.window.createTreeView("rhinolabs.installed", {
     treeDataProvider: installedProvider,
@@ -21,20 +27,46 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(installedView);
 
+  const availableView = vscode.window.createTreeView("rhinolabs.available", {
+    treeDataProvider: availableProvider,
+    showCollapseAll: true,
+  });
+  context.subscriptions.push(availableView);
+
   // ── Register commands ───────────────────────────────────
 
   context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "rhinolabs.refreshInstalled",
-      () => refreshInstalled(),
+    vscode.commands.registerCommand("rhinolabs.refreshInstalled", () =>
+      refreshInstalled(),
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("rhinolabs.refreshAvailable", () =>
+      refreshAvailable(),
     ),
   );
 
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "rhinolabs.installProfile",
-      (item?: { subProject?: { path: string } }) =>
-        installProfile(item?.subProject?.path),
+      (item?: AvailableProfileItem | { subProject?: { path: string } }) =>
+        installProfile(item),
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "rhinolabs.uninstallProfile",
+      (item?: { subProject?: { path: string; profileName: string | null } }) =>
+        uninstallProfile(item?.subProject?.path, item?.subProject?.profileName),
+    ),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "rhinolabs.toggleSkill",
+      (item?: { skillId?: string }) => toggleSkill(item?.skillId),
     ),
   );
 
@@ -42,8 +74,6 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand(
       "rhinolabs.openSkillFile",
       (item?: { command?: { arguments?: vscode.Uri[] } }) => {
-        // The SkillItem already has a command that opens the file.
-        // This handler is for the context menu (manual trigger).
         if (item?.command?.arguments?.[0]) {
           vscode.commands.executeCommand(
             "vscode.open",
@@ -55,9 +85,8 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand(
-      "rhinolabs.runDiagnostics",
-      () => runDiagnostics(),
+    vscode.commands.registerCommand("rhinolabs.runDiagnostics", () =>
+      runDiagnostics(),
     ),
   );
 
@@ -78,6 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ── Initial load ────────────────────────────────────────
 
   refreshInstalled();
+  refreshAvailable();
 }
 
 export function deactivate(): void {
@@ -97,33 +127,58 @@ async function refreshInstalled(): Promise<void> {
   profileStatus.update(subProjects);
 }
 
-async function installProfile(targetPath?: string): Promise<void> {
+async function refreshAvailable(): Promise<void> {
   try {
-    // 1. Get available profiles
     const profiles = await cli.profileList();
-    if (profiles.length === 0) {
-      vscode.window.showInformationMessage(
-        "No profiles available. Create one with: rlai profile create",
+    availableProvider.update(profiles);
+  } catch {
+    // CLI not available — show empty view, don't spam errors on startup
+    availableProvider.update([]);
+  }
+}
+
+async function installProfile(
+  item?: AvailableProfileItem | { subProject?: { path: string } },
+): Promise<void> {
+  try {
+    // Determine profile ID — from Available TreeView item or via QuickPick
+    let profileId: string | undefined;
+
+    if (item instanceof AvailableProfileItem) {
+      profileId = item.profile.id;
+    }
+
+    if (!profileId) {
+      const profiles = await cli.profileList();
+      if (profiles.length === 0) {
+        vscode.window.showInformationMessage(
+          "No profiles available. Create one with: rlai profile create",
+        );
+        return;
+      }
+
+      const picked = await vscode.window.showQuickPick(
+        profiles.map((p) => ({
+          label: p.name,
+          description: p.id,
+          detail: `${p.description} (${p.skills.length} skills)`,
+          profileId: p.id,
+        })),
+        { placeHolder: "Select a profile to install" },
       );
-      return;
+      if (!picked) {
+        return;
+      }
+      profileId = picked.profileId;
     }
 
-    // 2. Pick a profile
-    const picked = await vscode.window.showQuickPick(
-      profiles.map((p) => ({
-        label: p.name,
-        description: p.id,
-        detail: `${p.description} (${p.skills.length} skills)`,
-        profileId: p.id,
-      })),
-      { placeHolder: "Select a profile to install" },
-    );
-    if (!picked) {
-      return;
+    // Determine target path — from context menu or via QuickPick
+    let installPath: string | undefined;
+
+    if (item && "subProject" in item && item.subProject?.path) {
+      installPath = item.subProject.path;
     }
 
-    // 3. Pick target directory (if not provided from context menu)
-    let installPath = targetPath;
     if (!installPath) {
       const subProjects = installedProvider.getSubProjects();
       const items = subProjects.map((sp) => ({
@@ -141,8 +196,8 @@ async function installProfile(targetPath?: string): Promise<void> {
       installPath = target.path;
     }
 
-    // 4. Install
-    const result = await cli.profileInstall(picked.profileId, installPath);
+    // Install
+    const result = await cli.profileInstall(profileId, installPath);
 
     const skillCount = result.skillsInstalled.length;
     const failCount = result.skillsFailed.length;
@@ -157,11 +212,68 @@ async function installProfile(targetPath?: string): Promise<void> {
       vscode.window.showInformationMessage(message);
     }
 
-    // 5. Refresh
+    // Refresh both views
     await refreshInstalled();
+    await refreshAvailable();
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(`Failed to install profile: ${msg}`);
+  }
+}
+
+async function uninstallProfile(
+  targetPath?: string,
+  profileName?: string | null,
+): Promise<void> {
+  try {
+    if (!targetPath) {
+      vscode.window.showErrorMessage(
+        "No target path. Right-click a profile in the Installed view to uninstall.",
+      );
+      return;
+    }
+
+    // Confirmation dialog
+    const displayName = profileName ?? "profile";
+    const confirm = await vscode.window.showWarningMessage(
+      `Uninstall "${displayName}" from ${targetPath}? This removes skills, instructions, and the plugin manifest.`,
+      { modal: true },
+      "Uninstall",
+    );
+
+    if (confirm !== "Uninstall") {
+      return;
+    }
+
+    const result = await cli.profileUninstall(targetPath);
+
+    const name = result.profileName ?? result.profileId ?? "Profile";
+    vscode.window.showInformationMessage(`"${name}" uninstalled successfully.`);
+
+    await refreshInstalled();
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to uninstall profile: ${msg}`);
+  }
+}
+
+async function toggleSkill(skillId?: string): Promise<void> {
+  if (!skillId) {
+    return;
+  }
+
+  try {
+    const skill = await cli.skillShow(skillId);
+    const action = skill.enabled ? "disable" : "enable";
+
+    // The CLI doesn't expose `skill toggle --json` yet.
+    // Show informational message until it's implemented.
+    vscode.window.showInformationMessage(
+      `Toggle "${skillId}" → ${action}. (CLI command pending — use GUI or edit .skills-config.json)`,
+    );
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to toggle skill: ${msg}`);
   }
 }
 

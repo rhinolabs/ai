@@ -527,3 +527,57 @@ fn test_skill_category_serialized_values() {
         );
     }
 }
+
+// ============================================
+// ProfileUninstallResult Contract Test
+// ============================================
+// Note: ProfileUninstallResult is a CLI-local struct (not in core).
+// This test validates the JSON shape the VS Code extension expects
+// by constructing the same JSON structure the CLI produces.
+
+#[test]
+fn test_profile_uninstall_result_json_shape() {
+    // Simulate the JSON that `rlai profile uninstall --json` produces.
+    // The extension's ProfileUninstallResult type expects these exact fields.
+    let json_with_profile = serde_json::json!({
+        "success": true,
+        "profileId": "react-stack",
+        "profileName": "React Stack",
+        "targetPath": "/home/user/project"
+    });
+
+    assert_has_field(&json_with_profile, "success", "ProfileUninstallResult");
+    assert_has_field(&json_with_profile, "profileId", "ProfileUninstallResult");
+    assert_has_field(&json_with_profile, "profileName", "ProfileUninstallResult");
+    assert_has_field(&json_with_profile, "targetPath", "ProfileUninstallResult");
+
+    assert!(json_with_profile["success"].is_boolean());
+    assert!(json_with_profile["profileId"].is_string());
+    assert!(json_with_profile["profileName"].is_string());
+    assert!(json_with_profile["targetPath"].is_string());
+
+    // When no profile was detected, profileId and profileName should be absent
+    let json_no_profile = serde_json::json!({
+        "success": true,
+        "targetPath": "/tmp/empty"
+    });
+
+    assert_has_field(
+        &json_no_profile,
+        "success",
+        "ProfileUninstallResult (no profile)",
+    );
+    assert_has_field(
+        &json_no_profile,
+        "targetPath",
+        "ProfileUninstallResult (no profile)",
+    );
+    assert!(
+        json_no_profile.get("profileId").is_none(),
+        "profileId should be absent when no profile detected"
+    );
+    assert!(
+        json_no_profile.get("profileName").is_none(),
+        "profileName should be absent when no profile detected"
+    );
+}

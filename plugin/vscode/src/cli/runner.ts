@@ -5,6 +5,7 @@ import type {
   Profile,
   ProfileInstallResult,
   ProfileSyncResult,
+  ProfileUninstallResult,
   Skill,
   StatusOutput,
   UpdateCheckResult,
@@ -72,6 +73,22 @@ export class RlaiCli {
       args.push("--path", targetPath);
     }
     return this.exec<ProfileSyncResult>(args);
+  }
+
+  async profileUninstall(
+    targetPath?: string,
+    targets?: string[],
+  ): Promise<ProfileUninstallResult> {
+    const args = ["profile", "uninstall"];
+    if (targetPath) {
+      args.push("--path", targetPath);
+    }
+    if (targets && targets.length > 0) {
+      for (const t of targets) {
+        args.push("--target", t);
+      }
+    }
+    return this.exec<ProfileUninstallResult>(args);
   }
 
   // ── Skill commands ────────────────────────────────────────
