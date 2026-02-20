@@ -1,0 +1,23 @@
+{
+  "author": {
+    "name": "Rhinolabs"
+  },
+  "description": "Skills for React 19 projects with Typescript and Tailwind",
+  "name": "profile-react-stack",
+  "profile": {
+    "autoInvokeRules": [],
+    "id": "react-stack",
+    "name": "React 19 skills stack",
+    "skills": [
+      "react-patterns",
+      "tailwind-4",
+      "typescript-best-practices",
+      "playwright",
+      "ai-sdk-react",
+      "nextjs-integration",
+      "testing-strategies",
+      "implement-design"
+    ]
+  },
+  "version": "1.0.0"
+}

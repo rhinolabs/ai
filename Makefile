@@ -1,4 +1,4 @@
-.PHONY: test test-rust test-e2e test-quick build clean help setup-hooks
+.PHONY: test test-rust test-e2e test-quick build clean help setup-hooks web-dev web-build web-type-check
 
 # Default target
 help:
@@ -12,6 +12,8 @@ help:
 	@echo "  make build       - Build all components"
 	@echo "  make install     - Install all dependencies"
 	@echo "  make run         - Run the Tauri application (Dev)"
+	@echo "  make web-dev     - Run the Next.js web app (Dev)"
+	@echo "  make web-build   - Build the Next.js web app"
 	@echo "  make clean       - Clean build artifacts"
 
 # Install dependencies
@@ -61,8 +63,22 @@ build:
 	cd gui && pnpm build
 	@echo "✓ Build completed"
 
+# Web app (Next.js)
+web-dev:
+	@echo "Starting Next.js dev server..."
+	cd web && pnpm dev
+
+web-build:
+	@echo "Building Next.js app..."
+	cd web && pnpm build
+
+web-type-check:
+	@echo "Type checking web app..."
+	cd web && pnpm type-check
+
 # Clean
 clean:
 	cargo clean
 	rm -rf gui/dist
+	rm -rf web/.next
 	@echo "✓ Cleaned"

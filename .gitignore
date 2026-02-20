@@ -41,3 +41,8 @@ Cargo.lock
 
 # Tauri
 gui/src-tauri/target/
+
+# Next.js
+.next/
+web/.next/
+web/out/
