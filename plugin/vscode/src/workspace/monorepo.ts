@@ -25,10 +25,16 @@ export interface SubProject {
  * Scans up to `maxDepth` levels deep, skipping common non-project directories.
  * A "subproject" is any directory containing `.claude-plugin/plugin.json`.
  * The workspace root is always included (even without a plugin.json).
+ *
+ * @param maxDepthOverride — Override the configured max depth (used in tests).
  */
-export function detectSubProjects(workspaceRoot: string): SubProject[] {
-  const config = vscode.workspace.getConfiguration("rhinolabs");
-  const maxDepth = config.get<number>("monorepo.maxDepth", 3);
+export function detectSubProjects(
+  workspaceRoot: string,
+  maxDepthOverride?: number,
+): SubProject[] {
+  const maxDepth =
+    maxDepthOverride ??
+    vscode.workspace.getConfiguration("rhinolabs").get<number>("monorepo.maxDepth", 3);
   const results: SubProject[] = [];
 
   // Always include the root
