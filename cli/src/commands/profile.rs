@@ -63,10 +63,15 @@ fn format_targets(targets: &[DeployTarget]) -> String {
 }
 
 /// List all profiles
-pub fn list() -> Result<()> {
-    Ui::header("Profiles");
-
+pub fn list(json: bool) -> Result<()> {
     let profiles = Profiles::list()?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&profiles)?);
+        return Ok(());
+    }
+
+    Ui::header("Profiles");
 
     if profiles.is_empty() {
         Ui::info("No profiles configured yet.");
@@ -76,7 +81,7 @@ pub fn list() -> Result<()> {
 
     let default_user = Profiles::get_default_user_profile()?.map(|p| p.id);
 
-    for profile in profiles {
+    for profile in &profiles {
         let type_badge = match profile.profile_type {
             ProfileType::User => "[User]",
             ProfileType::Project => "[Project]",
@@ -110,8 +115,13 @@ pub fn list() -> Result<()> {
 }
 
 /// Show details of a specific profile
-pub fn show(profile_id: &str) -> Result<()> {
+pub fn show(profile_id: &str, json: bool) -> Result<()> {
     let profile = Profiles::get(profile_id)?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&profile)?);
+        return Ok(());
+    }
 
     match profile {
         Some(profile) => {
@@ -155,7 +165,12 @@ pub fn install(
     profile_id: &str,
     target_path: Option<String>,
     target_strs: Vec<String>,
+    json: bool,
 ) -> Result<()> {
+    if json {
+        return install_json(profile_id, target_path, target_strs);
+    }
+
     Ui::header("Installing Profile");
 
     let targets = parse_targets(&target_strs)?;
@@ -475,6 +490,103 @@ pub fn uninstall(target_path: Option<String>, target_strs: Vec<String>) -> Resul
 
     Ui::success("Profile uninstalled!");
 
+    Ok(())
+}
+
+/// Install a profile in JSON mode (non-interactive, no prompts)
+fn install_json(
+    profile_id: &str,
+    target_path: Option<String>,
+    target_strs: Vec<String>,
+) -> Result<()> {
+    let targets = parse_targets(&target_strs)?;
+    let targets_ref = if targets.is_empty() {
+        None
+    } else {
+        Some(targets.as_slice())
+    };
+
+    let profile = Profiles::get(profile_id)?;
+    match profile {
+        Some(profile) => {
+            let effective_path = if profile.profile_type == ProfileType::Project {
+                Some(
+                    target_path
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default()),
+                )
+            } else {
+                None
+            };
+
+            let path = effective_path.as_deref();
+            let result = Profiles::install(profile_id, path, targets_ref)?;
+            println!("{}", serde_json::to_string_pretty(&result)?);
+        }
+        None => {
+            let err = serde_json::json!({ "error": format!("Profile '{}' not found", profile_id) });
+            println!("{}", serde_json::to_string_pretty(&err)?);
+        }
+    }
+
+    Ok(())
+}
+
+/// Sync installed profile: reconcile declared vs installed skills
+pub fn sync(target_path: Option<String>, json: bool) -> Result<()> {
+    let path = target_path
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+
+    let result = Profiles::sync_project(&path)?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&result)?);
+        return Ok(());
+    }
+
+    // Pretty-print mode
+    Ui::header("Profile Sync");
+
+    match result.status.as_str() {
+        "no_profile" => {
+            Ui::warning("No profile installed in this directory.");
+            Ui::info("Use 'rhinolabs-ai profile install <profile>' to install one first.");
+        }
+        "synced" => {
+            Ui::success("Profile already in sync — nothing to do.");
+            println!("  Profile: {}", result.profile_id.as_deref().unwrap_or("—"));
+            println!("  Skills:  {}", result.unchanged.len());
+        }
+        "updated" => {
+            Ui::success("Profile synced!");
+            println!("  Profile: {}", result.profile_id.as_deref().unwrap_or("—"));
+
+            if !result.added.is_empty() {
+                Ui::section("Added");
+                for skill in &result.added {
+                    println!("  {} {}", "✓".green(), skill);
+                }
+            }
+
+            if !result.removed.is_empty() {
+                Ui::section("Removed");
+                for skill in &result.removed {
+                    println!("  {} {}", "✗".red(), skill);
+                }
+            }
+
+            if !result.unchanged.is_empty() {
+                println!();
+                println!("  Unchanged: {} skills", result.unchanged.len());
+            }
+        }
+        _ => {
+            Ui::info(&format!("Status: {}", result.status));
+        }
+    }
+
+    println!();
     Ok(())
 }
 

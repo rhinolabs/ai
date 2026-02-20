@@ -146,6 +146,27 @@ pub struct SkillInstallError {
 }
 
 // ============================================
+// Profile Sync Result
+// ============================================
+
+/// Result of syncing a project's installed skills with its declared profile
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileSyncResult {
+    /// "synced" (no changes needed), "updated" (changes applied), "no_profile" (no plugin.json)
+    pub status: String,
+    /// Skills that were missing and got installed
+    pub added: Vec<String>,
+    /// Skills that were extra and got removed
+    pub removed: Vec<String>,
+    /// Skills that were already installed correctly
+    pub unchanged: Vec<String>,
+    /// Profile ID from plugin.json (None if no_profile)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_id: Option<String>,
+}
+
+// ============================================
 // Storage Configuration
 // ============================================
 
@@ -1403,6 +1424,141 @@ Skills in `{}/`:
     ) -> Result<ProfileInstallResult> {
         // Simply re-install - install_skill already handles removing existing
         Self::install(profile_id, target_path, targets)
+    }
+
+    // ============================================
+    // Profile Sync (declared vs installed)
+    // ============================================
+
+    /// Sync a project's installed skills with what its profile declares.
+    ///
+    /// Reads `.claude-plugin/plugin.json` to find the declared profile and skills,
+    /// compares with what's actually installed in `.claude/skills/`, and reconciles:
+    /// - Missing skills → installed
+    /// - Extra skills (not in profile) → removed
+    /// - Already correct → unchanged
+    pub fn sync_project(project_path: &Path) -> Result<ProfileSyncResult> {
+        let plugin_json = project_path.join(".claude-plugin").join("plugin.json");
+
+        if !plugin_json.exists() {
+            return Ok(ProfileSyncResult {
+                status: "no_profile".to_string(),
+                added: Vec::new(),
+                removed: Vec::new(),
+                unchanged: Vec::new(),
+                profile_id: None,
+            });
+        }
+
+        // Read plugin.json to get profile info and declared skills
+        let content = fs::read_to_string(&plugin_json)?;
+        let manifest: serde_json::Value = serde_json::from_str(&content)?;
+
+        let profile_id = manifest["profile"]["id"].as_str().unwrap_or("").to_string();
+
+        // Get the declared skills from the profile config
+        let declared_skills: Vec<String> = match Self::get(&profile_id)? {
+            Some(profile) => profile.skills,
+            None => {
+                // Profile not in config anymore — nothing to sync
+                return Ok(ProfileSyncResult {
+                    status: "no_profile".to_string(),
+                    added: Vec::new(),
+                    removed: Vec::new(),
+                    unchanged: Vec::new(),
+                    profile_id: Some(profile_id),
+                });
+            }
+        };
+
+        // Get currently installed skills (directories/symlinks in .claude/skills/)
+        let skills_dir = TargetPaths::project_skills_dir(DeployTarget::ClaudeCode, project_path);
+        let mut installed_skills: Vec<String> = Vec::new();
+
+        if skills_dir.exists() {
+            for entry in fs::read_dir(&skills_dir)? {
+                let entry = entry?;
+                let name = entry.file_name().to_string_lossy().to_string();
+                // Skip dotfiles (.gitignore, etc.)
+                if name.starts_with('.') {
+                    continue;
+                }
+                // Only count directories and symlinks (which are skill installations)
+                let ft = entry.file_type()?;
+                if ft.is_dir() || ft.is_symlink() {
+                    installed_skills.push(name);
+                }
+            }
+        }
+
+        // Compute diff
+        let declared_set: std::collections::HashSet<&str> =
+            declared_skills.iter().map(|s| s.as_str()).collect();
+        let installed_set: std::collections::HashSet<&str> =
+            installed_skills.iter().map(|s| s.as_str()).collect();
+
+        let to_add: Vec<String> = declared_set
+            .difference(&installed_set)
+            .map(|s| s.to_string())
+            .collect();
+        let to_remove: Vec<String> = installed_set
+            .difference(&declared_set)
+            .map(|s| s.to_string())
+            .collect();
+        let unchanged: Vec<String> = declared_set
+            .intersection(&installed_set)
+            .map(|s| s.to_string())
+            .collect();
+
+        if to_add.is_empty() && to_remove.is_empty() {
+            return Ok(ProfileSyncResult {
+                status: "synced".to_string(),
+                added: Vec::new(),
+                removed: Vec::new(),
+                unchanged,
+                profile_id: Some(profile_id),
+            });
+        }
+
+        // Apply changes
+        fs::create_dir_all(&skills_dir)?;
+
+        // Install missing skills
+        let mut added = Vec::new();
+        for skill_id in &to_add {
+            match Self::install_skill(skill_id, &skills_dir) {
+                Ok(_) => added.push(skill_id.clone()),
+                Err(e) => {
+                    eprintln!("Warning: could not install skill '{}': {}", skill_id, e);
+                }
+            }
+        }
+
+        // Remove extra skills
+        let mut removed = Vec::new();
+        for skill_id in &to_remove {
+            let skill_path = skills_dir.join(skill_id);
+            if skill_path.exists() || skill_path.symlink_metadata().is_ok() {
+                if skill_path.is_dir() {
+                    let _ = fs::remove_dir_all(&skill_path);
+                } else {
+                    // Symlink or file
+                    let _ = fs::remove_file(&skill_path);
+                }
+                removed.push(skill_id.clone());
+            }
+        }
+
+        // Regenerate .gitignore
+        Self::generate_skills_gitignore(&skills_dir, &declared_skills)?;
+
+        Ok(ProfileSyncResult {
+            status: "updated".to_string(),
+            added,
+            removed,
+            unchanged,
+            profile_id: Some(profile_id),
+        })
     }
 
     // ============================================
@@ -3024,5 +3180,346 @@ mod tests {
         assert!(!result.contains("skill-b"));
         assert!(!result.contains("Auto-generated"));
         assert!(!result.contains("End rhinolabs-ai"));
+    }
+
+    // ============================================
+    // ProfileSyncResult Tests
+    // ============================================
+
+    #[test]
+    fn test_profile_sync_result_serialization() {
+        let result = ProfileSyncResult {
+            status: "updated".to_string(),
+            added: vec!["new-skill".to_string()],
+            removed: vec!["old-skill".to_string()],
+            unchanged: vec!["react-patterns".to_string(), "tailwind-4".to_string()],
+            profile_id: Some("react-stack".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"status\":\"updated\""));
+        assert!(json.contains("\"added\":[\"new-skill\"]"));
+        assert!(json.contains("\"removed\":[\"old-skill\"]"));
+        assert!(json.contains("\"unchanged\""));
+        assert!(json.contains("\"profileId\":\"react-stack\""));
+
+        // Roundtrip
+        let deserialized: ProfileSyncResult = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.status, "updated");
+        assert_eq!(deserialized.added, vec!["new-skill"]);
+        assert_eq!(deserialized.removed, vec!["old-skill"]);
+        assert_eq!(deserialized.unchanged.len(), 2);
+        assert_eq!(deserialized.profile_id, Some("react-stack".to_string()));
+    }
+
+    #[test]
+    fn test_profile_sync_result_no_profile_skips_profile_id() {
+        let result = ProfileSyncResult {
+            status: "no_profile".to_string(),
+            added: Vec::new(),
+            removed: Vec::new(),
+            unchanged: Vec::new(),
+            profile_id: None,
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"status\":\"no_profile\""));
+        // profileId should be omitted when None
+        assert!(!json.contains("\"profileId\""));
+    }
+
+    #[test]
+    fn test_profile_sync_result_synced_empty_diffs() {
+        let result = ProfileSyncResult {
+            status: "synced".to_string(),
+            added: Vec::new(),
+            removed: Vec::new(),
+            unchanged: vec!["skill-a".to_string(), "skill-b".to_string()],
+            profile_id: Some("test-profile".to_string()),
+        };
+
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("\"status\":\"synced\""));
+        assert!(json.contains("\"added\":[]"));
+        assert!(json.contains("\"removed\":[]"));
+        assert!(json.contains("\"unchanged\":[\"skill-a\",\"skill-b\"]"));
+    }
+
+    // ============================================
+    // sync_project Integration Tests
+    // ============================================
+
+    #[test]
+    fn test_sync_project_no_plugin_json() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let _env = TestEnv::new();
+
+        let project_dir = tempfile::tempdir().unwrap();
+        // No .claude-plugin/plugin.json exists
+
+        let result = Profiles::sync_project(project_dir.path()).unwrap();
+        assert_eq!(result.status, "no_profile");
+        assert!(result.added.is_empty());
+        assert!(result.removed.is_empty());
+        assert!(result.unchanged.is_empty());
+        assert!(result.profile_id.is_none());
+    }
+
+    #[test]
+    fn test_sync_project_profile_not_found_in_config() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Create empty profiles config (no profiles)
+        env.create_profiles_config(&ProfilesConfig::default());
+
+        let project_dir = tempfile::tempdir().unwrap();
+
+        // Create plugin.json referencing a profile that doesn't exist in config
+        let plugin_dir = project_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let manifest = serde_json::json!({
+            "profile": { "id": "nonexistent-profile", "name": "Ghost" }
+        });
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let result = Profiles::sync_project(project_dir.path()).unwrap();
+        assert_eq!(result.status, "no_profile");
+        assert_eq!(result.profile_id, Some("nonexistent-profile".to_string()));
+    }
+
+    #[test]
+    fn test_sync_project_already_synced() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Create two skills in the plugin
+        env.create_skill("skill-a", "Skill A", "Desc A", "Content A");
+        env.create_skill("skill-b", "Skill B", "Desc B", "Content B");
+
+        // Create profile config with those skills
+        let now = chrono::Utc::now().to_rfc3339();
+        let config = ProfilesConfig {
+            profiles: vec![Profile {
+                id: "test-profile".to_string(),
+                name: "Test Profile".to_string(),
+                description: "Test".to_string(),
+                profile_type: ProfileType::Project,
+                skills: vec!["skill-a".to_string(), "skill-b".to_string()],
+                auto_invoke_rules: Vec::new(),
+                instructions: None,
+                generate_copilot: false,
+                generate_agents: false,
+                created_at: now.clone(),
+                updated_at: now,
+            }],
+            default_user_profile: None,
+        };
+        env.create_profiles_config(&config);
+
+        let project_dir = tempfile::tempdir().unwrap();
+
+        // Create plugin.json
+        let plugin_dir = project_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let manifest = serde_json::json!({
+            "profile": { "id": "test-profile", "name": "Test Profile" }
+        });
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        // Simulate installed skills (create dirs matching the profile)
+        let skills_dir = project_dir.path().join(".claude").join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::create_dir_all(skills_dir.join("skill-a")).unwrap();
+        fs::create_dir_all(skills_dir.join("skill-b")).unwrap();
+
+        let result = Profiles::sync_project(project_dir.path()).unwrap();
+        assert_eq!(result.status, "synced");
+        assert!(result.added.is_empty());
+        assert!(result.removed.is_empty());
+        assert_eq!(result.unchanged.len(), 2);
+        assert!(result.unchanged.contains(&"skill-a".to_string()));
+        assert!(result.unchanged.contains(&"skill-b".to_string()));
+        assert_eq!(result.profile_id, Some("test-profile".to_string()));
+    }
+
+    #[test]
+    fn test_sync_project_adds_missing_skills() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Create skills in the plugin
+        env.create_skill("skill-a", "Skill A", "Desc A", "Content A");
+        env.create_skill("skill-b", "Skill B", "Desc B", "Content B");
+
+        // Profile declares both skills
+        let now = chrono::Utc::now().to_rfc3339();
+        let config = ProfilesConfig {
+            profiles: vec![Profile {
+                id: "test-profile".to_string(),
+                name: "Test Profile".to_string(),
+                description: "Test".to_string(),
+                profile_type: ProfileType::Project,
+                skills: vec!["skill-a".to_string(), "skill-b".to_string()],
+                auto_invoke_rules: Vec::new(),
+                instructions: None,
+                generate_copilot: false,
+                generate_agents: false,
+                created_at: now.clone(),
+                updated_at: now,
+            }],
+            default_user_profile: None,
+        };
+        env.create_profiles_config(&config);
+
+        let project_dir = tempfile::tempdir().unwrap();
+
+        // Create plugin.json
+        let plugin_dir = project_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let manifest = serde_json::json!({
+            "profile": { "id": "test-profile", "name": "Test Profile" }
+        });
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        // Only skill-a is installed, skill-b is missing
+        let skills_dir = project_dir.path().join(".claude").join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::create_dir_all(skills_dir.join("skill-a")).unwrap();
+
+        let result = Profiles::sync_project(project_dir.path()).unwrap();
+        assert_eq!(result.status, "updated");
+        assert!(result.added.contains(&"skill-b".to_string()));
+        assert!(result.removed.is_empty());
+        assert!(result.unchanged.contains(&"skill-a".to_string()));
+
+        // Verify skill-b was actually installed
+        assert!(skills_dir.join("skill-b").exists());
+    }
+
+    #[test]
+    fn test_sync_project_removes_extra_skills() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        // Only skill-a in the profile
+        env.create_skill("skill-a", "Skill A", "Desc A", "Content A");
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let config = ProfilesConfig {
+            profiles: vec![Profile {
+                id: "test-profile".to_string(),
+                name: "Test Profile".to_string(),
+                description: "Test".to_string(),
+                profile_type: ProfileType::Project,
+                skills: vec!["skill-a".to_string()],
+                auto_invoke_rules: Vec::new(),
+                instructions: None,
+                generate_copilot: false,
+                generate_agents: false,
+                created_at: now.clone(),
+                updated_at: now,
+            }],
+            default_user_profile: None,
+        };
+        env.create_profiles_config(&config);
+
+        let project_dir = tempfile::tempdir().unwrap();
+
+        // Create plugin.json
+        let plugin_dir = project_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let manifest = serde_json::json!({
+            "profile": { "id": "test-profile", "name": "Test Profile" }
+        });
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        // skill-a and skill-extra installed — skill-extra is not in the profile
+        let skills_dir = project_dir.path().join(".claude").join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::create_dir_all(skills_dir.join("skill-a")).unwrap();
+        fs::create_dir_all(skills_dir.join("skill-extra")).unwrap();
+
+        let result = Profiles::sync_project(project_dir.path()).unwrap();
+        assert_eq!(result.status, "updated");
+        assert!(result.added.is_empty());
+        assert!(result.removed.contains(&"skill-extra".to_string()));
+        assert!(result.unchanged.contains(&"skill-a".to_string()));
+
+        // Verify skill-extra was actually removed
+        assert!(!skills_dir.join("skill-extra").exists());
+    }
+
+    #[test]
+    fn test_sync_project_ignores_dotfiles() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        let env = TestEnv::new();
+        env.setup_skills_dir();
+
+        env.create_skill("skill-a", "Skill A", "Desc A", "Content A");
+
+        let now = chrono::Utc::now().to_rfc3339();
+        let config = ProfilesConfig {
+            profiles: vec![Profile {
+                id: "test-profile".to_string(),
+                name: "Test Profile".to_string(),
+                description: "Test".to_string(),
+                profile_type: ProfileType::Project,
+                skills: vec!["skill-a".to_string()],
+                auto_invoke_rules: Vec::new(),
+                instructions: None,
+                generate_copilot: false,
+                generate_agents: false,
+                created_at: now.clone(),
+                updated_at: now,
+            }],
+            default_user_profile: None,
+        };
+        env.create_profiles_config(&config);
+
+        let project_dir = tempfile::tempdir().unwrap();
+
+        // Create plugin.json
+        let plugin_dir = project_dir.path().join(".claude-plugin");
+        fs::create_dir_all(&plugin_dir).unwrap();
+        let manifest = serde_json::json!({
+            "profile": { "id": "test-profile", "name": "Test Profile" }
+        });
+        fs::write(
+            plugin_dir.join("plugin.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        // skill-a installed + .gitignore file (should be ignored in scan)
+        let skills_dir = project_dir.path().join(".claude").join("skills");
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::create_dir_all(skills_dir.join("skill-a")).unwrap();
+        fs::write(skills_dir.join(".gitignore"), "# some ignore\n").unwrap();
+
+        let result = Profiles::sync_project(project_dir.path()).unwrap();
+        // .gitignore should NOT appear as an extra skill to remove
+        assert_eq!(result.status, "synced");
+        assert!(result.removed.is_empty());
     }
 }

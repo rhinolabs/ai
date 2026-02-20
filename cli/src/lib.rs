@@ -11,6 +11,10 @@ use commands::*;
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Output results as JSON (for programmatic consumption)
+    #[arg(long, global = true)]
+    json: bool,
 }
 
 #[derive(Subcommand)]
@@ -35,6 +39,10 @@ enum Commands {
         /// Dry run - show what would be done without making changes
         #[arg(long)]
         dry_run: bool,
+
+        /// Only check if an update is available (does not install)
+        #[arg(long)]
+        check: bool,
     },
 
     /// Uninstall the plugin
@@ -139,6 +147,13 @@ enum ProfileAction {
         #[arg(short, long)]
         target: Vec<String>,
     },
+
+    /// Sync installed profile: reconcile declared vs installed skills
+    Sync {
+        /// Target project path (defaults to current directory)
+        #[arg(short = 'P', long)]
+        path: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -240,6 +255,8 @@ pub async fn run() -> anyhow::Result<()> {
         let _ = auto_sync::run_auto_sync().await;
     }
 
+    let json = cli.json;
+
     match cli.command {
         Some(Commands::Install {
             target,
@@ -248,8 +265,12 @@ pub async fn run() -> anyhow::Result<()> {
         }) => {
             install::run(target, skip_profile, dry_run).await?;
         }
-        Some(Commands::Update { dry_run }) => {
-            update::run(dry_run).await?;
+        Some(Commands::Update { dry_run, check }) => {
+            if check {
+                update::check(json).await?;
+            } else {
+                update::run(dry_run).await?;
+            }
         }
         Some(Commands::Uninstall { dry_run }) => {
             uninstall::run(dry_run)?;
@@ -258,27 +279,27 @@ pub async fn run() -> anyhow::Result<()> {
             sync_mcp::run(url, file, dry_run).await?;
         }
         Some(Commands::Status) => {
-            status::run()?;
+            status::run(json)?;
         }
         Some(Commands::Doctor) => {
-            doctor::run().await?;
+            doctor::run(json).await?;
         }
         Some(Commands::Version) => {
             version::run();
         }
         Some(Commands::Profile { action }) => match action {
             ProfileAction::List => {
-                profile::list()?;
+                profile::list(json)?;
             }
             ProfileAction::Show { profile_id } => {
-                profile::show(&profile_id)?;
+                profile::show(&profile_id, json)?;
             }
             ProfileAction::Install {
                 profile,
                 path,
                 target,
             } => {
-                profile::install(&profile, path, target)?;
+                profile::install(&profile, path, target, json)?;
             }
             ProfileAction::Update {
                 profile,
@@ -290,13 +311,16 @@ pub async fn run() -> anyhow::Result<()> {
             ProfileAction::Uninstall { path, target } => {
                 profile::uninstall(path, target)?;
             }
+            ProfileAction::Sync { path } => {
+                profile::sync(path, json)?;
+            }
         },
         Some(Commands::Skill { action }) => match action {
             SkillAction::List => {
-                skill::list()?;
+                skill::list(json)?;
             }
             SkillAction::Show { skill_id } => {
-                skill::show(&skill_id)?;
+                skill::show(&skill_id, json)?;
             }
             SkillAction::Create {
                 id,

@@ -29,8 +29,8 @@ pub async fn run() -> Result<()> {
                 Ui::info("Please use: rhinolabs sync-mcp --url <URL>");
                 Ui::info("Or: rhinolabs sync-mcp --file <PATH>");
             }
-            3 => super::status::run()?,
-            4 => super::doctor::run().await?,
+            3 => super::status::run(false)?,
+            4 => super::doctor::run(false).await?,
             5 => super::uninstall::run(false)?,
             6 => {
                 println!("Goodbye!");

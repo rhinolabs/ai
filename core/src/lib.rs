@@ -33,8 +33,8 @@ pub use mcp_sync::McpSync;
 pub use output_styles::{OutputStyle, OutputStyles};
 pub use paths::Paths;
 pub use profiles::{
-    AutoInvokeRule, CreateProfileInput, Profile, ProfileInstallResult, ProfileType, Profiles,
-    SkillInstallError, UpdateAutoInvokeInput, UpdateProfileInput,
+    AutoInvokeRule, CreateProfileInput, Profile, ProfileInstallResult, ProfileSyncResult,
+    ProfileType, Profiles, SkillInstallError, UpdateAutoInvokeInput, UpdateProfileInput,
 };
 pub use project::{
     GitHubConfig, Project, ProjectConfig, ProjectStatus, ReleaseAsset, DEFAULT_GITHUB_OWNER,

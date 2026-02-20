@@ -394,6 +394,108 @@ fn test_remote_skill_file_has_frontend_fields() {
 }
 
 // ============================================
+// ProfileSyncResult Contract (CLI --json output)
+// ============================================
+
+#[test]
+fn test_profile_sync_result_has_expected_fields() {
+    use rhinolabs_core::ProfileSyncResult;
+
+    let result = ProfileSyncResult {
+        status: "updated".to_string(),
+        added: vec!["new-skill".to_string()],
+        removed: vec!["old-skill".to_string()],
+        unchanged: vec!["react-patterns".to_string()],
+        profile_id: Some("react-stack".to_string()),
+    };
+
+    let json = serde_json::to_value(&result).expect("ProfileSyncResult should serialize");
+    let context = "ProfileSyncResult";
+
+    assert_has_field(&json, "status", context);
+    assert_has_field(&json, "added", context);
+    assert_has_field(&json, "removed", context);
+    assert_has_field(&json, "unchanged", context);
+    assert_has_field(&json, "profileId", context);
+
+    // Verify types
+    assert!(json["status"].is_string());
+    assert!(json["added"].is_array());
+    assert!(json["removed"].is_array());
+    assert!(json["unchanged"].is_array());
+    assert!(json["profileId"].is_string());
+
+    // Verify status is one of the valid values
+    let status = json["status"].as_str().unwrap();
+    assert!(
+        ["synced", "updated", "no_profile"].contains(&status),
+        "status '{}' not valid",
+        status
+    );
+}
+
+#[test]
+fn test_profile_sync_result_no_profile_omits_profile_id() {
+    use rhinolabs_core::ProfileSyncResult;
+
+    let result = ProfileSyncResult {
+        status: "no_profile".to_string(),
+        added: Vec::new(),
+        removed: Vec::new(),
+        unchanged: Vec::new(),
+        profile_id: None,
+    };
+
+    let json = serde_json::to_value(&result).expect("ProfileSyncResult should serialize");
+
+    // profileId should NOT be present when None
+    assert!(
+        json.get("profileId").is_none(),
+        "profileId should be omitted when None"
+    );
+}
+
+// ============================================
+// ProfileInstallResult Contract (CLI --json output)
+// ============================================
+
+#[test]
+fn test_profile_install_result_has_expected_fields() {
+    use rhinolabs_core::{ProfileInstallResult, SkillInstallError};
+
+    let result = ProfileInstallResult {
+        profile_id: "react-stack".to_string(),
+        profile_name: "React Stack".to_string(),
+        target_path: "/project".to_string(),
+        skills_installed: vec!["skill-a".to_string()],
+        skills_failed: vec![SkillInstallError {
+            skill_id: "bad-skill".to_string(),
+            error: "Not found".to_string(),
+        }],
+        instructions_installed: None,
+        settings_installed: None,
+        output_style_installed: None,
+        targets_installed: vec![rhinolabs_core::DeployTarget::ClaudeCode],
+    };
+
+    let json = serde_json::to_value(&result).expect("ProfileInstallResult should serialize");
+    let context = "ProfileInstallResult (CLI --json)";
+
+    assert_has_field(&json, "profileId", context);
+    assert_has_field(&json, "profileName", context);
+    assert_has_field(&json, "targetPath", context);
+    assert_has_field(&json, "skillsInstalled", context);
+    assert_has_field(&json, "skillsFailed", context);
+    assert_has_field(&json, "targetsInstalled", context);
+
+    // skillsFailed items should have skillId and error
+    let failed = json["skillsFailed"].as_array().unwrap();
+    assert!(!failed.is_empty());
+    assert_has_field(&failed[0], "skillId", "SkillInstallError");
+    assert_has_field(&failed[0], "error", "SkillInstallError");
+}
+
+// ============================================
 // Category Value Alignment Test
 // ============================================
 

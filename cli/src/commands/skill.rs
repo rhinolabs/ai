@@ -29,10 +29,15 @@ fn category_display(category: &SkillCategory) -> &'static str {
 }
 
 /// List all skills
-pub fn list() -> Result<()> {
-    Ui::header("Skills");
-
+pub fn list(json: bool) -> Result<()> {
     let skills = Skills::list()?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&skills)?);
+        return Ok(());
+    }
+
+    Ui::header("Skills");
 
     if skills.is_empty() {
         Ui::info("No skills installed yet.");
@@ -43,7 +48,7 @@ pub fn list() -> Result<()> {
     // Group by category
     let mut current_category: Option<SkillCategory> = None;
 
-    for skill in skills {
+    for skill in &skills {
         // Print category header when it changes
         if current_category.as_ref() != Some(&skill.category) {
             current_category = Some(skill.category.clone());
@@ -137,8 +142,13 @@ pub fn set_category(skill_id: String, category: String) -> Result<()> {
 }
 
 /// Show details of a specific skill
-pub fn show(skill_id: &str) -> Result<()> {
+pub fn show(skill_id: &str, json: bool) -> Result<()> {
     let skill = Skills::get(skill_id)?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&skill)?);
+        return Ok(());
+    }
 
     match skill {
         Some(skill) => {

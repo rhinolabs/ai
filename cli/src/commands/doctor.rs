@@ -3,11 +3,17 @@ use anyhow::Result;
 use colored::Colorize;
 use rhinolabs_core::{diagnostics::CheckStatus, Doctor};
 
-pub async fn run() -> Result<()> {
+pub async fn run(json: bool) -> Result<()> {
+    let report = Doctor::run().await?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+
     Ui::header("🔍 Running Diagnostics");
 
     println!();
-    let report = Doctor::run().await?;
 
     for check in &report.checks {
         let (icon, name_colored) = match check.status {
