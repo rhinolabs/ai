@@ -6,12 +6,16 @@ import {
 } from "./providers/AvailableTreeProvider.js";
 import { InstalledTreeProvider } from "./providers/InstalledTreeProvider.js";
 import { ProfileStatus } from "./statusbar/ProfileStatus.js";
+import { syncOnOpen } from "./startup/syncOnOpen.js";
+import { checkForUpdates } from "./startup/updateCheck.js";
+import { ProfileWatcher } from "./watchers/ProfileWatcher.js";
 import { detectSubProjects } from "./workspace/monorepo.js";
 
 let cli: RlaiCli;
 let installedProvider: InstalledTreeProvider;
 let availableProvider: AvailableTreeProvider;
 let profileStatus: ProfileStatus;
+let profileWatcher: ProfileWatcher;
 
 export function activate(context: vscode.ExtensionContext): void {
   cli = new RlaiCli();
@@ -100,6 +104,16 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
+  // ── File watchers (post-pull auto-sync) ─────────────────
+
+  profileWatcher = new ProfileWatcher(cli, {
+    onSyncComplete: async () => {
+      await refreshInstalled();
+      await refreshAvailable();
+    },
+  });
+  context.subscriptions.push(profileWatcher);
+
   // ── Cleanup ─────────────────────────────────────────────
 
   context.subscriptions.push(profileStatus);
@@ -108,6 +122,31 @@ export function activate(context: vscode.ExtensionContext): void {
 
   refreshInstalled();
   refreshAvailable();
+
+  // ── Startup tasks (run in background, don't block activation) ──
+
+  void runStartupTasks();
+}
+
+/**
+ * Startup tasks run in the background after activation.
+ * They are fire-and-forget — errors are silently swallowed.
+ */
+async function runStartupTasks(): Promise<void> {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspaceRoot) {
+    return;
+  }
+
+  // Sync profiles for subprojects that have plugin.json
+  const subProjects = detectSubProjects(workspaceRoot);
+  await syncOnOpen(cli, subProjects);
+
+  // Refresh views after sync (in case sync changed installed skills)
+  await refreshInstalled();
+
+  // Check for plugin updates
+  await checkForUpdates(cli);
 }
 
 export function deactivate(): void {
