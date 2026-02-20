@@ -2,3 +2,4 @@ packages:
   - 'gui'
   - 'gui/tests'
   - 'web'
+  - 'plugin/*'

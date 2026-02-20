@@ -1,0 +1,180 @@
+{
+  "name": "rhinolabs-ai",
+  "displayName": "Rhinolabs AI",
+  "description": "Manage AI coding assistant profiles and skills from your editor",
+  "publisher": "rhinolabs",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rhinolabs/ai"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/.claude-plugin/plugin.json",
+    "workspaceContains:**/CLAUDE.md"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "rhinolabs",
+          "title": "Rhinolabs AI",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "rhinolabs": [
+        {
+          "id": "rhinolabs.installed",
+          "name": "Installed Profiles"
+        },
+        {
+          "id": "rhinolabs.available",
+          "name": "Available Profiles"
+        },
+        {
+          "id": "rhinolabs.diagnostics",
+          "name": "Diagnostics"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "rhinolabs.refreshInstalled",
+        "title": "Refresh Installed Profiles",
+        "icon": "$(refresh)",
+        "category": "Rhinolabs"
+      },
+      {
+        "command": "rhinolabs.refreshAvailable",
+        "title": "Refresh Available Profiles",
+        "icon": "$(refresh)",
+        "category": "Rhinolabs"
+      },
+      {
+        "command": "rhinolabs.installProfile",
+        "title": "Install Profile",
+        "icon": "$(cloud-download)",
+        "category": "Rhinolabs"
+      },
+      {
+        "command": "rhinolabs.uninstallProfile",
+        "title": "Uninstall Profile",
+        "icon": "$(trash)",
+        "category": "Rhinolabs"
+      },
+      {
+        "command": "rhinolabs.runDiagnostics",
+        "title": "Run Diagnostics",
+        "icon": "$(play)",
+        "category": "Rhinolabs"
+      },
+      {
+        "command": "rhinolabs.openSkillFile",
+        "title": "Open Skill File",
+        "icon": "$(go-to-file)",
+        "category": "Rhinolabs"
+      },
+      {
+        "command": "rhinolabs.toggleSkill",
+        "title": "Toggle Skill",
+        "category": "Rhinolabs"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "rhinolabs.refreshInstalled",
+          "when": "view == rhinolabs.installed",
+          "group": "navigation"
+        },
+        {
+          "command": "rhinolabs.refreshAvailable",
+          "when": "view == rhinolabs.available",
+          "group": "navigation"
+        },
+        {
+          "command": "rhinolabs.runDiagnostics",
+          "when": "view == rhinolabs.diagnostics",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "rhinolabs.installProfile",
+          "when": "view == rhinolabs.available && viewItem == profile",
+          "group": "inline"
+        },
+        {
+          "command": "rhinolabs.uninstallProfile",
+          "when": "view == rhinolabs.installed && viewItem == profile",
+          "group": "inline"
+        },
+        {
+          "command": "rhinolabs.installProfile",
+          "when": "view == rhinolabs.installed && viewItem == emptySubProject",
+          "group": "inline"
+        },
+        {
+          "command": "rhinolabs.openSkillFile",
+          "when": "viewItem == skill"
+        },
+        {
+          "command": "rhinolabs.toggleSkill",
+          "when": "viewItem == skill"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Rhinolabs AI",
+      "properties": {
+        "rhinolabs.cli.path": {
+          "type": "string",
+          "default": "rlai",
+          "description": "Path to the rlai CLI binary"
+        },
+        "rhinolabs.autoSync.onStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-sync profiles when the IDE opens"
+        },
+        "rhinolabs.autoSync.onPull": {
+          "type": "boolean",
+          "default": true,
+          "description": "Prompt to sync profile changes after git pull"
+        },
+        "rhinolabs.autoUpdate.check": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for rhinolabs-ai plugin updates on startup"
+        },
+        "rhinolabs.monorepo.maxDepth": {
+          "type": "number",
+          "default": 3,
+          "description": "Maximum directory depth for monorepo subproject detection"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --target=node18",
+    "watch": "npm run compile -- --watch --sourcemap",
+    "package": "npm run compile -- --minify",
+    "lint": "tsc --noEmit",
+    "vscode:prepublish": "npm run package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.0"
+  }
+}
