@@ -119,17 +119,55 @@ export class RlaiCli {
     return this.exec<UpdateCheckResult>(["update", "--check"]);
   }
 
+  // ── Availability ─────────────────────────────────────────
+
+  /**
+   * Check if the CLI binary is reachable.
+   * Returns true if `rlai --version` succeeds, false otherwise.
+   */
+  async isAvailable(): Promise<boolean> {
+    try {
+      await this.execRaw(["--version"]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   // ── Internal ──────────────────────────────────────────────
 
   private exec<T>(args: string[]): Promise<T> {
     // Always append --json
     const fullArgs = [...args, "--json"];
+
+    return new Promise((resolve, reject) => {
+      this.execRaw(fullArgs)
+        .then((stdout) => {
+          try {
+            const parsed = JSON.parse(stdout) as T;
+            resolve(parsed);
+          } catch {
+            reject(
+              new CliError(
+                `Failed to parse CLI output for: rlai ${args.join(" ")}`,
+                null,
+                stdout,
+              ),
+            );
+          }
+        })
+        .catch(reject);
+    });
+  }
+
+  /** Execute a command and return raw stdout */
+  private execRaw(args: string[]): Promise<string> {
     const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     return new Promise((resolve, reject) => {
       execFile(
         this.binaryPath,
-        fullArgs,
+        args,
         {
           cwd,
           timeout: this.timeout,
@@ -148,19 +186,7 @@ export class RlaiCli {
             );
             return;
           }
-
-          try {
-            const parsed = JSON.parse(stdout) as T;
-            resolve(parsed);
-          } catch {
-            reject(
-              new CliError(
-                `Failed to parse CLI output for: rlai ${args.join(" ")}`,
-                null,
-                stdout,
-              ),
-            );
-          }
+          resolve(stdout);
         },
       );
     });

@@ -4,6 +4,7 @@ import {
   AvailableTreeProvider,
   AvailableProfileItem,
 } from "./providers/AvailableTreeProvider.js";
+import { DiagnosticsTreeProvider } from "./providers/DiagnosticsTreeProvider.js";
 import { InstalledTreeProvider } from "./providers/InstalledTreeProvider.js";
 import { ProfileStatus } from "./statusbar/ProfileStatus.js";
 import { syncOnOpen } from "./startup/syncOnOpen.js";
@@ -14,6 +15,7 @@ import { detectSubProjects } from "./workspace/monorepo.js";
 let cli: RlaiCli;
 let installedProvider: InstalledTreeProvider;
 let availableProvider: AvailableTreeProvider;
+let diagnosticsProvider: DiagnosticsTreeProvider;
 let profileStatus: ProfileStatus;
 let profileWatcher: ProfileWatcher;
 
@@ -21,7 +23,23 @@ export function activate(context: vscode.ExtensionContext): void {
   cli = new RlaiCli();
   installedProvider = new InstalledTreeProvider();
   availableProvider = new AvailableTreeProvider();
+  diagnosticsProvider = new DiagnosticsTreeProvider();
   profileStatus = new ProfileStatus();
+
+  // ── Set initial context keys ──────────────────────────────
+
+  const hasWorkspace = (vscode.workspace.workspaceFolders?.length ?? 0) > 0;
+  void vscode.commands.executeCommand(
+    "setContext",
+    "rhinolabs.hasWorkspace",
+    hasWorkspace,
+  );
+  // CLI availability is set asynchronously in runStartupTasks
+  void vscode.commands.executeCommand(
+    "setContext",
+    "rhinolabs.cliUnavailable",
+    false,
+  );
 
   // ── Register TreeViews ──────────────────────────────────
 
@@ -36,6 +54,14 @@ export function activate(context: vscode.ExtensionContext): void {
     showCollapseAll: true,
   });
   context.subscriptions.push(availableView);
+
+  const diagnosticsView = vscode.window.createTreeView(
+    "rhinolabs.diagnostics",
+    {
+      treeDataProvider: diagnosticsProvider,
+    },
+  );
+  context.subscriptions.push(diagnosticsView);
 
   // ── Register commands ───────────────────────────────────
 
@@ -135,6 +161,18 @@ export function activate(context: vscode.ExtensionContext): void {
 async function runStartupTasks(): Promise<void> {
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   if (!workspaceRoot) {
+    return;
+  }
+
+  // Check CLI availability and set context key for welcome views
+  const cliAvailable = await cli.isAvailable();
+  void vscode.commands.executeCommand(
+    "setContext",
+    "rhinolabs.cliUnavailable",
+    !cliAvailable,
+  );
+
+  if (!cliAvailable) {
     return;
   }
 
@@ -319,17 +357,13 @@ async function toggleSkill(skillId?: string): Promise<void> {
 async function runDiagnostics(): Promise<void> {
   try {
     const report = await cli.doctor();
-    const { passed, failed, warnings } = report;
+    diagnosticsProvider.update(report);
 
+    const { passed, failed, warnings } = report;
     const summary = `Diagnostics: ${passed} passed, ${warnings} warnings, ${failed} failed`;
 
     if (failed > 0) {
-      const details = report.checks
-        .filter((c) => c.status === "Fail")
-        .map((c) => `  - ${c.name}: ${c.message}`)
-        .join("\n");
-
-      vscode.window.showErrorMessage(`${summary}\n${details}`);
+      vscode.window.showErrorMessage(summary);
     } else if (warnings > 0) {
       vscode.window.showWarningMessage(summary);
     } else {
@@ -337,6 +371,7 @@ async function runDiagnostics(): Promise<void> {
     }
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
+    diagnosticsProvider.showError(msg);
     vscode.window.showErrorMessage(`Diagnostics failed: ${msg}`);
   }
 }

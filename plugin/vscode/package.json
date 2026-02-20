@@ -133,6 +133,38 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "rhinolabs.installed",
+        "contents": "No profiles installed in this workspace.\n[Install a Profile](command:rhinolabs.installProfile)",
+        "when": "rhinolabs.hasWorkspace && !rhinolabs.cliUnavailable"
+      },
+      {
+        "view": "rhinolabs.installed",
+        "contents": "The rlai CLI was not found.\nInstall it or configure the path in settings.\n[Open Settings](command:workbench.action.openSettings?%5B%22rhinolabs.cli.path%22%5D)",
+        "when": "rhinolabs.cliUnavailable"
+      },
+      {
+        "view": "rhinolabs.available",
+        "contents": "No profiles available.\nCreate one with `rlai profile create` or check your CLI configuration.\n[Refresh](command:rhinolabs.refreshAvailable)",
+        "when": "rhinolabs.hasWorkspace && !rhinolabs.cliUnavailable"
+      },
+      {
+        "view": "rhinolabs.available",
+        "contents": "The rlai CLI was not found.\nInstall it or configure the path in settings.\n[Open Settings](command:workbench.action.openSettings?%5B%22rhinolabs.cli.path%22%5D)",
+        "when": "rhinolabs.cliUnavailable"
+      },
+      {
+        "view": "rhinolabs.diagnostics",
+        "contents": "Click the play button to run diagnostics.\n[Run Diagnostics](command:rhinolabs.runDiagnostics)",
+        "when": "rhinolabs.hasWorkspace && !rhinolabs.cliUnavailable"
+      },
+      {
+        "view": "rhinolabs.diagnostics",
+        "contents": "The rlai CLI was not found.\nInstall it or configure the path in settings.\n[Open Settings](command:workbench.action.openSettings?%5B%22rhinolabs.cli.path%22%5D)",
+        "when": "rhinolabs.cliUnavailable"
+      }
+    ],
     "configuration": {
       "title": "Rhinolabs AI",
       "properties": {
